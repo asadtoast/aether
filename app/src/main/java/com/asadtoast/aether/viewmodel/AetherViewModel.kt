@@ -1,0 +1,660 @@
+package com.asadtoast.aether.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.asadtoast.aether.data.AddTagsRequest
+import com.asadtoast.aether.data.FileMetadata
+import com.asadtoast.aether.data.HydrusRepository
+import com.asadtoast.aether.data.SettingsManager
+import com.asadtoast.aether.data.TagSuggestion
+import com.asadtoast.aether.data.TagWikiEntity
+import com.asadtoast.aether.data.WikiRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import androidx.paging.filter
+import com.asadtoast.aether.data.HydrusPagingSource
+
+sealed class UiEvent {
+    data class ShowToast(val message: String) : UiEvent()
+}
+
+sealed class BooruScrapeState {
+    object Idle : BooruScrapeState()
+    object Loading : BooruScrapeState()
+    data class Success(val tags: List<com.asadtoast.aether.data.ParsedTag>) : BooruScrapeState()
+    data class Error(val message: String) : BooruScrapeState()
+}
+
+data class GalleryUiState(
+    val isLoading: Boolean = false,
+    val isTrashMode: Boolean = false,
+    val searchQuery: String = "",
+    val sortType: Int = 2,
+    val isAscending: Boolean = false,
+    val totalFilesCount: Int = 0,
+    val isReviewMode: Boolean = false,
+    val reviewIndex: Int = 0,
+    val isProcessingBatch: Boolean = false,
+    val batchProgress: Int = 0,
+    val batchTotal: Int = 0,
+    val gifAutoLoop: Boolean = true
+)
+
+class HydrusViewModel(
+    private val wikiRepo: WikiRepository,
+    private val settingsManager: SettingsManager,
+    private val hydrusRepository: HydrusRepository
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(GalleryUiState())
+    val uiState = _uiState.asStateFlow()
+
+    private val _searchTrigger = MutableStateFlow(0)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val pagedImages: Flow<PagingData<FileMetadata>> = _searchTrigger
+        .flatMapLatest {
+            if (currentActiveIds.isEmpty()) {
+                flowOf(PagingData.empty())
+            } else {
+                val pagerFlow = Pager(
+                    config = PagingConfig(pageSize = 30, enablePlaceholders = false),
+                    pagingSourceFactory = {
+                        HydrusPagingSource(hydrusRepository, currentActiveIds.toList()).also { currentPagingSource = it }
+                    }
+                ).flow
+
+                combine(
+                    pagerFlow,
+                    _hidePdf,
+                    _hidePsd,
+                    _hideZip,
+                    _hideVideos
+                ) { pagingData, hidePdf, hidePsd, hideZip, hideVideos ->
+                    pagingData.filter { file ->
+                        val mimeStr = file.mime.lowercase()
+                        val mimeInt = mimeStr.toIntOrNull() ?: -1
+
+                        val isVideo = mimeInt in listOf(2, 3, 4, 8) || mimeStr.startsWith("video/") // hydrus video mimes
+                        val isPdf = mimeInt == 14 || mimeStr.contains("pdf")
+                        val isZip = mimeInt == 9 || mimeStr.contains("zip")
+                        val isPsd = mimeInt == 16 || mimeStr.contains("photoshop") || mimeStr.contains("psd")
+
+                        !(hidePdf && isPdf) && !(hidePsd && isPsd) && !(hideZip && isZip) && !(hideVideos && isVideo)
+                    }
+                }
+            }
+        }
+        .cachedIn(viewModelScope)
+    private var currentPagingSource: HydrusPagingSource? = null
+    private var currentActiveIds = mutableListOf<Long>()
+    private var hasModifications = false
+
+
+    private val _hidePdf = MutableStateFlow(false)
+    private val _hidePsd = MutableStateFlow(false)
+    private val _hideZip = MutableStateFlow(false)
+    private val _hideVideos = MutableStateFlow(false)
+
+    // event channel
+    private val _uiEvents = MutableSharedFlow<UiEvent>()
+    val uiEvents = _uiEvents.asSharedFlow()
+
+    // index for horizontal pager
+    private val _selectedImageIndex = MutableStateFlow<Int?>(null)
+    val selectedImageIndex = _selectedImageIndex.asStateFlow()
+
+    // state to save the actual tags currently being edited
+    private val _currentImageTags = MutableStateFlow("")
+    val currentImageTags = _currentImageTags.asStateFlow()
+    private val _currentMimeType = MutableStateFlow("")
+
+    // state to define if metadata is being loaded
+    private val _isLoadingMetadata = MutableStateFlow(false)
+
+    private var lastSearchQuery = ""
+    private var galleryJob: kotlinx.coroutines.Job? = null
+
+    // database engine
+    val allWikiEntries = wikiRepo.allWikiEntries
+
+    init {
+        viewModelScope.launch { settingsManager.hidePdfFlow.collect { _hidePdf.value = it } }
+        viewModelScope.launch { settingsManager.hidePsdFlow.collect { _hidePsd.value = it } }
+        viewModelScope.launch { settingsManager.hideZipFlow.collect { _hideZip.value = it } }
+        viewModelScope.launch { settingsManager.hideVideosFlow.collect { _hideVideos.value = it } }
+        viewModelScope.launch { settingsManager.gifAutoLoopFlow.collect { loop -> _uiState.update { it.copy(gifAutoLoop = loop) } } }
+    }
+
+
+    // datastore
+    fun saveHidePdf(hide: Boolean) {
+        viewModelScope.launch { settingsManager.saveHidePdf(hide) }
+    }
+
+    fun saveHidePsd(hide: Boolean) {
+        viewModelScope.launch { settingsManager.saveHidePsd(hide) }
+    }
+
+    fun saveHideZip(hide: Boolean) {
+        viewModelScope.launch { settingsManager.saveHideZip(hide) }
+    }
+
+    fun saveGifAutoLoop(loop: Boolean) {
+        viewModelScope.launch { settingsManager.saveGifAutoLoop(loop) }
+    }
+
+    fun fetchGallery(
+        tagsText: String = "",
+        sortType: Int = _uiState.value.sortType,
+        sortAscending: Boolean = _uiState.value.isAscending,
+        isTrash: Boolean = _uiState.value.isTrashMode
+    ) {
+        if (tagsText.isBlank() && !isTrash) {
+            lastSearchQuery = ""
+            currentActiveIds.clear()
+            _searchTrigger.value += 1
+            _uiState.update { it.copy(isLoading = false, totalFilesCount = 0, searchQuery = tagsText, sortType = sortType, isAscending = sortAscending, isTrashMode = false) }
+            galleryJob?.cancel()
+            return
+        }
+        galleryJob?.cancel()
+        _uiState.update { it.copy(isLoading = true, searchQuery = tagsText, sortType = sortType, isAscending = sortAscending, isTrashMode = isTrash) }
+
+        currentActiveIds.clear()
+        _searchTrigger.value += 1
+
+        if (tagsText.isNotEmpty()) {
+            lastSearchQuery = tagsText
+        }
+        val activeTagsText = tagsText.ifEmpty { lastSearchQuery }
+
+        galleryJob = viewModelScope.launch {
+            try {
+                // tag cleanup
+                val baseTagsList = activeTagsText.split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+
+                // translate aliases to tags
+                val translatedTagsList = baseTagsList.map { inputTag ->
+                    val wikiEntry = wikiRepo.allWikiEntries.value.find { entry ->
+                        entry.aliases.any { it.equals(inputTag, ignoreCase = true) }
+                    }
+                    wikiEntry?.tagName ?: inputTag
+                }
+
+                // trash filter, applied to translated files
+                val tagsList = if (isTrash) {
+                    translatedTagsList.filter {
+                        !it.equals("system:inbox", ignoreCase = true) &&
+                                !it.equals("system:archive", ignoreCase = true)
+                    }
+                } else {
+                    translatedTagsList
+                }
+
+                val targetService = if (isTrash) "trash" else "my files"
+
+                // network request
+                val searchResponse = hydrusRepository.searchFiles(
+                    tags = tagsList,
+                    sortType = sortType,
+                    sortAsc = sortAscending,
+                    service = targetService
+                )
+
+                if (searchResponse.isSuccess) {
+                    val response = searchResponse.getOrNull()!!
+                    val fetchedIds = response.file_ids
+                    currentActiveIds = fetchedIds.toMutableList()
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size, isLoading = false) }
+
+                    if (currentActiveIds.isNotEmpty()) {
+                        _searchTrigger.value += 1
+                    }
+                } else {
+                    val e = searchResponse.exceptionOrNull()
+                    _uiState.update { it.copy(isLoading = false) }
+                    android.util.Log.e("FETCH_GALLERY", "Error loading files: ${e?.message}")
+                }
+
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false) }
+                e.printStackTrace()
+                android.util.Log.e("FETCH_GALLERY", "Error loading files: ${e.message}")
+            }
+        }
+    }
+
+
+    // gallery screen search functions
+    fun selectImage(index: Int?) {
+        _selectedImageIndex.value = index
+    }
+
+    // add tag to file function
+    fun addTagsToImage(fileId: Long, tagsText: String) {
+        viewModelScope.launch {
+            val tagsList = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            if (tagsList.isEmpty()) return@launch
+
+            val request = AddTagsRequest(file_id = fileId, service_names_to_tags = mapOf("my tags" to tagsList))
+
+            val result = hydrusRepository.addTags(request)
+            if (result.isSuccess) {
+                fetchExistingTagsForImage(fileId)
+            } else {
+                android.util.Log.e("HydrusDebug", "Error while adding: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    // remove tags from file function
+    fun removeTagsFromImage(fileId: Long, tagsToRemove: String) {
+        viewModelScope.launch {
+            val tagsList = tagsToRemove.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            if (tagsList.isEmpty()) return@launch
+
+            val request = AddTagsRequest(file_id = fileId, service_names_to_actions_to_tags = mapOf("my tags" to mapOf("1" to tagsList)))
+
+            val result = hydrusRepository.addTags(request)
+            if (result.isSuccess) {
+                fetchExistingTagsForImage(fileId)
+            } else {
+                android.util.Log.e("HydrusDebug", "Error while removing: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    // function to request existing tags from server
+    fun fetchExistingTagsForImage(fileId: Long) {
+        viewModelScope.launch {
+            _isLoadingMetadata.value = true
+            _currentImageTags.value = "Loading tags..."
+
+            val result = hydrusRepository.getFileMetadata(listOf(fileId))
+            if (result.isSuccess) {
+                val response = result.getOrNull()!!
+                if (response.metadata.isNotEmpty()) {
+                    val metadataItem = response.metadata[0]
+                    _currentMimeType.value = metadataItem.mime
+
+                    val tagsList = metadataItem.tags?.values?.find { it.name == "my tags" }?.display_tags?.get("0") ?: emptyList()
+                    _currentImageTags.value = tagsList.joinToString(", ")
+                } else {
+                    _currentImageTags.value = ""
+                }
+            } else {
+                _currentImageTags.value = ""
+            }
+
+            _isLoadingMetadata.value = false
+        }
+    }
+
+    fun setReviewMode(isReview: Boolean) {
+        _uiState.update { it.copy(isReviewMode = isReview, reviewIndex = 0) }
+        if (!isReview) {
+            // gallery refresh after processing
+            _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+            currentPagingSource?.invalidate()
+        }
+    }
+
+    fun resetReviewIndex() {
+        _uiState.update { it.copy(reviewIndex = 0) }
+        if (hasModifications) {
+            _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+            currentPagingSource?.invalidate()
+            hasModifications = false
+        }
+    }
+
+    // function to read, send to trash and update
+    fun trashSpecificFile(fileId: Long, onEmptyList: () -> Unit) {
+        viewModelScope.launch {
+            val result = hydrusRepository.trashFile(fileId = fileId)
+            if (result.isSuccess) {
+                currentActiveIds.remove(fileId)
+                hasModifications = true
+                if (_uiState.value.totalFilesCount <= 1) onEmptyList()
+                if (!_uiState.value.isReviewMode) {
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                    currentPagingSource?.invalidate()
+                }
+            }
+        }
+    }
+
+    // skip function
+    fun skipReview() {
+        _uiState.update { it.copy(reviewIndex = it.reviewIndex + 1) }
+    }
+
+
+    // restore from trash
+    fun restoreImage(fileId: Long, onEmptyList: () -> Unit) {
+        viewModelScope.launch {
+            val result = hydrusRepository.restoreFile(fileId = fileId)
+            if (result.isSuccess) {
+                currentActiveIds.remove(fileId)
+                hasModifications = true
+                if (_uiState.value.totalFilesCount <= 1) onEmptyList()
+                if (!_uiState.value.isReviewMode) {
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                    currentPagingSource?.invalidate()
+                }
+            }
+        }
+    }
+
+    // archive/delete undo
+    fun undoReview(revertedFileId: Long) {
+        if (_uiState.value.reviewIndex > 0) {
+            _uiState.update { it.copy(reviewIndex = it.reviewIndex - 1) }
+            viewModelScope.launch {
+                hydrusRepository.restoreFile(fileId = revertedFileId)
+            }
+        }
+    }
+
+    // function for tag retrieving in real time
+    private val _tagSuggestions = MutableStateFlow<List<TagSuggestion>>(emptyList())
+    val tagSuggestions = _tagSuggestions.asStateFlow()
+
+    // smart tag suggestion function
+    fun fetchTagSuggestions(query: String) {
+        if (query.isBlank()) {
+            _tagSuggestions.value = emptyList()
+            return
+        }
+
+        viewModelScope.launch {
+            // search matches for local alias
+            val currentWord = query.substringAfterLast(",").trim()
+            if (currentWord.isEmpty()) {
+                _tagSuggestions.value = emptyList()
+                return@launch
+            }
+            val localEntries = wikiRepo.allWikiEntries.value
+
+            val localMatches = localEntries.filter { entry ->
+                entry.aliases.any { it.contains(currentWord, ignoreCase = true) }
+            }.take(10)
+
+            val localSuggestions = localMatches.map { wikiEntry ->
+                val matchedAlias = wikiEntry.aliases.firstOrNull {
+                    it.contains(currentWord, ignoreCase = true)
+                } ?: wikiEntry.aliases.firstOrNull() ?: "Aliases"
+
+                TagSuggestion(
+                    value = "$matchedAlias ➔ ${wikiEntry.tagName}",
+                    count = wikiEntry.count.toFloat()
+                )
+            }
+
+            // remote search and merge
+            val result = hydrusRepository.searchTags(currentWord)
+            if (result.isSuccess) {
+                val response = result.getOrNull()
+                val apiSuggestions = response?.tags ?: emptyList()
+
+                // update local database count in background
+                wikiRepo.updateExistingTagCounts(apiSuggestions)
+
+                // combine server and local, then delete dupes
+                val combined = (apiSuggestions + localSuggestions).distinctBy {
+                    if (it.value.contains("➔")) it.value.substringAfter("➔").trim() else it.value
+                }.sortedByDescending { it.count }
+
+                _tagSuggestions.value = combined
+            } else {
+                // if no network, show local (check if still useful)
+                _tagSuggestions.value = localSuggestions
+            }
+        }
+    }
+
+    fun getTagCount(tagName: String): Int {
+        val list = allWikiEntries.value
+
+        // binary logarithmic search
+        val index = list.binarySearchBy(tagName) { it.tagName }
+
+        return if (index >= 0) {
+            when (val countValue = list[index].count) {
+                else -> countValue.toInt()
+            }
+        } else {
+            0
+        }
+    }
+
+    fun getTagWikiEntity(tagName: String): TagWikiEntity {
+        return allWikiEntries.value.find { it.tagName == tagName }
+            ?: TagWikiEntity(
+                tagName = tagName,
+                description = "",
+                aliases = emptyList(),
+                count = 0
+            )
+    }
+
+    fun trashMultipleFiles(fileIds: Set<Long>, skipRefresh: Boolean = false) {
+        if (fileIds.isEmpty()) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isProcessingBatch = true, batchTotal = fileIds.size, batchProgress = 0) }
+
+            // background work
+            withContext(Dispatchers.IO) {
+                fileIds.chunked(50).forEach { batch ->
+                    batch.map { id ->
+                        async { hydrusRepository.trashFile(fileId = id) }
+                    }.awaitAll()
+
+                    withContext(Dispatchers.Main) {
+                        currentActiveIds.removeAll(batch)
+                        hasModifications = true
+                        _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
+                    }
+                }
+            }
+
+            _uiState.update { it.copy(isProcessingBatch = false) }
+            if (!skipRefresh) {
+                _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                currentPagingSource?.invalidate()
+            }
+        }
+    }
+
+    fun archiveMultipleFiles(fileIds: Set<Long>, skipRefresh: Boolean = false) {
+        if (fileIds.isEmpty()) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isProcessingBatch = true, batchTotal = fileIds.size, batchProgress = 0) }
+
+            withContext(Dispatchers.IO) {
+                fileIds.chunked(50).forEach { batch ->
+                    batch.map { id ->
+                        async {
+                            hydrusRepository.restoreFile(fileId = id)
+                            hydrusRepository.archiveFile(fileId = id)
+                        }
+                    }.awaitAll()
+                    withContext(Dispatchers.Main) {
+                        currentActiveIds.removeAll(batch)
+                        hasModifications = true
+                        _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
+                    }
+                }
+            }
+
+            _uiState.update { it.copy(isProcessingBatch = false) }
+            if (!skipRefresh) {
+                _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                currentPagingSource?.invalidate()
+            }
+        }
+    }
+
+    fun inboxMultipleFiles(fileIds: Set<Long>, skipRefresh: Boolean = false) {
+        if (fileIds.isEmpty()) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isProcessingBatch = true, batchTotal = fileIds.size, batchProgress = 0) }
+
+            withContext(Dispatchers.IO) {
+                fileIds.chunked(50).forEach { batch ->
+                    batch.map { id ->
+                        async {
+                            hydrusRepository.restoreFile(fileId = id)
+                            hydrusRepository.unarchiveFile(fileId = id)
+                        }
+                    }.awaitAll()
+                    withContext(Dispatchers.Main) {
+                        currentActiveIds.removeAll(batch)
+                        hasModifications = true
+                        _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
+                    }
+                }
+            }
+
+            _uiState.update { it.copy(isProcessingBatch = false) }
+            if (!skipRefresh) {
+                _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                currentPagingSource?.invalidate()
+            }
+        }
+    }
+
+    fun modifyTagsForMultipleFiles(
+        fileIds: Set<Long>,
+        tagsText: String,
+        isDelete: Boolean,
+        targetService: String
+    ) {
+        if (fileIds.isEmpty() || tagsText.isBlank()) return
+
+        viewModelScope.launch {
+            val tagsList = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            if (tagsList.isEmpty()) return@launch
+
+            _uiState.update { it.copy(isProcessingBatch = true, batchTotal = 1, batchProgress = 0) }
+
+            val actionMap = if (isDelete) {
+                mapOf(targetService to mapOf("1" to tagsList))
+            } else {
+                mapOf(targetService to mapOf("0" to tagsList))
+            }
+
+            val request = AddTagsRequest(
+                file_ids = fileIds.toList(),
+                service_names_to_actions_to_tags = actionMap
+            )
+
+            val result = hydrusRepository.addTags(request)
+            if (result.isSuccess) {
+                currentPagingSource?.invalidate()
+                _uiEvents.emit(UiEvent.ShowToast("Tags updated successfully"))
+            } else {
+                android.util.Log.e("HydrusDebug", "Error when modifying tags in lot: ${result.exceptionOrNull()?.message}")
+                _uiEvents.emit(UiEvent.ShowToast("Error while updating tag"))
+            }
+
+            _uiState.update { it.copy(isProcessingBatch = false) }
+        }
+    }
+
+
+    // booru scraper state and repository
+    private val booruRepository = com.asadtoast.aether.data.BooruRepository()
+
+    private val _booruScrapeState = MutableStateFlow<BooruScrapeState>(BooruScrapeState.Idle)
+    val booruScrapeState = _booruScrapeState.asStateFlow()
+
+    fun scrapeBooruTags(file: FileMetadata) {
+        viewModelScope.launch {
+            _booruScrapeState.value = BooruScrapeState.Loading
+
+            // quick search, check for know URLs for danbooru
+            val danbooruUrl = file.knownUrls.find { it.contains("danbooru.donmai.us/posts/") }
+            if (danbooruUrl != null) {
+                val postId = danbooruUrl.substringAfterLast("/").substringBefore("?")
+                if (postId.isNotEmpty()) {
+                    val result = booruRepository.getTagsForPostId(postId)
+                    if (result.isSuccess) {
+                        val tags = result.getOrNull()!!
+                        if (tags.isEmpty()) {
+                            _booruScrapeState.value = BooruScrapeState.Error("No tags found in Danbooru for this post ID.")
+                        } else {
+                            _booruScrapeState.value = BooruScrapeState.Success(tags)
+                        }
+                    } else {
+                        _booruScrapeState.value = BooruScrapeState.Error(result.exceptionOrNull()?.message ?: "Error querying Danbooru by ID.")
+                    }
+                    return@launch
+                }
+            }
+
+
+            /*
+            filesize limit for md5 calculation on the fly
+            fallback, calculate MD5 hash by downloading file in streaming memory/bandwidth limit 10MB filesize
+            val sizeLimit = 10 * 1024 * 1024L // 10 MB
+            if (file.size != null && file.size > sizeLimit) {
+                _booruScrapeState.value = BooruScrapeState.Error("File is too large (${file.size / 1024 / 1024}MB) to calculate MD5. Max allowed is 10MB.")
+                return@launch
+            }
+            */
+
+            // calculate md5 hash by downloading file in streaming
+            val md5Result = hydrusRepository.getFileMd5(fileId = file.id)
+
+            if (md5Result.isSuccess) {
+                val md5Hash = md5Result.getOrNull()!!
+                if (md5Hash.isEmpty()) {
+                    _booruScrapeState.value = BooruScrapeState.Error("Failed to calculate MD5 hash.")
+                    return@launch
+                }
+
+                // search on danbooru using md5 hash
+                val booruResult = booruRepository.getTagsForMd5(md5Hash)
+                if (booruResult.isSuccess) {
+                    val tags = booruResult.getOrNull()!!
+                    if (tags.isEmpty()) {
+                        _booruScrapeState.value = BooruScrapeState.Error("No tags found in Danbooru for this file.")
+                    } else {
+                        _booruScrapeState.value = BooruScrapeState.Success(tags)
+                    }
+                } else {
+                    _booruScrapeState.value = BooruScrapeState.Error(booruResult.exceptionOrNull()?.message ?: "Error querying Danbooru.")
+                }
+            } else {
+                _booruScrapeState.value = BooruScrapeState.Error(md5Result.exceptionOrNull()?.message ?: "Error downloading file to calculate MD5.")
+            }
+        }
+    }
+
+    fun resetBooruState() {
+        _booruScrapeState.value = BooruScrapeState.Idle
+    }
+}
