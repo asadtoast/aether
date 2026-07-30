@@ -127,58 +127,134 @@ fun FullScreenEditDialog(
     val settingsManager = remember { com.asadtoast.aether.data.SettingsManager(context) }
     val isPrivacyKeyboardEnabled by settingsManager.privacyKeyboardFlow.collectAsState(initial = true)
 
-    androidx.activity.compose.BackHandler(onBack = onDismiss)
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
+                TopAppBar(
+                    title = { Text(if (initialTag.isEmpty()) "New tag" else "Edit tag") },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Cancel") }
+                    },
+                    actions = {
+                        TextButton(onClick = { onSave(currentTagName, description.text, aliases.toList(), references.toList(), initialCount) }) {
+                            Text("Save", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item { Spacer(modifier = Modifier.height(8.dp)) }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = { Text(if (initialTag.isEmpty()) "New tag" else "Edit tag") },
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Cancel") }
-                },
-                actions = {
-                    TextButton(onClick = { onSave(currentTagName, description.text, aliases.toList(), references.toList(), initialCount) }) {
-                        Text("Save", fontWeight = FontWeight.Bold)
+                item {
+                    key(isPrivacyKeyboardEnabled) {
+                        OutlinedTextField(
+                            value = currentTagName,
+                            onValueChange = { currentTagName = it.replace("\n", "") },
+                            label = { Text("Hydrus filename") },
+                            readOnly = initialTag.isNotEmpty(),
+                            enabled = initialTag.isEmpty(),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Unspecified,
+                                autoCorrectEnabled = !isPrivacyKeyboardEnabled,
+                                keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
+                                imeAction = ImeAction.Next
+                            )
+                        )
                     }
                 }
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item { Spacer(modifier = Modifier.height(8.dp)) }
 
-            item {
-                key(isPrivacyKeyboardEnabled) {
-                    OutlinedTextField(
-                        value = currentTagName,
-                        onValueChange = { currentTagName = it.replace("\n", "") },
-                        label = { Text("Hydrus filename") },
-                        readOnly = initialTag.isNotEmpty(),
-                        enabled = initialTag.isEmpty(),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.Unspecified,
-                            autoCorrectEnabled = !isPrivacyKeyboardEnabled,
-                            keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        )
-                    )
+                item {
+                    key(isPrivacyKeyboardEnabled) {
+                        Column {
+                            OutlinedTextField(
+                                value = description,
+                                onValueChange = { description = it },
+                                label = { Text("Description") },
+                                modifier = Modifier.fillMaxWidth().height(120.dp),
+                                keyboardOptions = KeyboardOptions(
+                                    capitalization = KeyboardCapitalization.Unspecified,
+                                    autoCorrectEnabled = !isPrivacyKeyboardEnabled,
+                                    keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
+                                    imeAction = ImeAction.Done
+                                )
+                            )
+
+                            val cursorPosition = description.selection.start
+                            val textBeforeCursor = description.text.substring(0, cursorPosition.coerceIn(0, description.text.length))
+                            val lastOpenBracket = textBeforeCursor.lastIndexOf("[[")
+                            val lastCloseBracket = textBeforeCursor.lastIndexOf("]]")
+
+                            var showAutocomplete by remember { mutableStateOf(false) }
+                            var autocompleteQuery by remember { mutableStateOf("") }
+
+                            if (lastOpenBracket != -1 && lastOpenBracket > lastCloseBracket) {
+                                autocompleteQuery = textBeforeCursor.substring(lastOpenBracket + 2)
+                                showAutocomplete = autocompleteQuery.isNotEmpty()
+                            } else {
+                                showAutocomplete = false
+                            }
+
+                            val suggestions = remember(autocompleteQuery, allWikiEntries) {
+                                if (autocompleteQuery.isBlank()) emptyList()
+                                else allWikiEntries.filter { it.tagName.contains(autocompleteQuery, ignoreCase = true) }.take(5)
+                            }
+
+                            AnimatedVisibility(visible = showAutocomplete && suggestions.isNotEmpty()) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                                ) {
+                                    LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                                        items(suggestions) { entry ->
+                                            Text(
+                                                text = entry.tagName,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        val textBefore = description.text.substring(0, lastOpenBracket)
+                                                        val textAfter = description.text.substring(cursorPosition)
+                                                        val insertedText = "[[${entry.tagName}]] "
+                                                        val newText = textBefore + insertedText + textAfter
+                                                        val newCursorPos = textBefore.length + insertedText.length
+                                                        description = androidx.compose.ui.text.input.TextFieldValue(
+                                                            text = newText,
+                                                            selection = androidx.compose.ui.text.TextRange(newCursorPos)
+                                                        )
+                                                        showAutocomplete = false
+                                                    }
+                                                    .padding(16.dp)
+                                            )
+                                            HorizontalDivider()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-            }
 
-            item {
-                key(isPrivacyKeyboardEnabled) {
-                    Column {
+                // aliases
+                item { Text("Aliases", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                itemsIndexed(aliases) { index, alias ->
+                    key(isPrivacyKeyboardEnabled) {
                         OutlinedTextField(
-                            value = description,
-                            onValueChange = { description = it },
-                            label = { Text("Description") },
-                            modifier = Modifier.fillMaxWidth().height(120.dp),
+                            value = alias,
+                            onValueChange = { aliases[index] = it.replace("\n", "") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            trailingIcon = {
+                                IconButton(onClick = { aliases.removeAt(index) }) { Icon(Icons.Default.Delete, "Delete") }
+                            },
                             keyboardOptions = KeyboardOptions(
                                 capitalization = KeyboardCapitalization.Unspecified,
                                 autoCorrectEnabled = !isPrivacyKeyboardEnabled,
@@ -186,212 +262,139 @@ fun FullScreenEditDialog(
                                 imeAction = ImeAction.Done
                             )
                         )
+                    }
+                }
+                item {
+                    OutlinedButton(onClick = { aliases.add("") }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Add, null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add alias")
+                    }
+                }
 
-                        val cursorPosition = description.selection.start
-                        val textBeforeCursor = description.text.substring(0, cursorPosition.coerceIn(0, description.text.length))
-                        val lastOpenBracket = textBeforeCursor.lastIndexOf("[[")
-                        val lastCloseBracket = textBeforeCursor.lastIndexOf("]]")
-
-                        var showAutocomplete by remember { mutableStateOf(false) }
-                        var autocompleteQuery by remember { mutableStateOf("") }
-
-                        if (lastOpenBracket != -1 && lastOpenBracket > lastCloseBracket) {
-                            autocompleteQuery = textBeforeCursor.substring(lastOpenBracket + 2)
-                            showAutocomplete = autocompleteQuery.isNotEmpty()
-                        } else {
-                            showAutocomplete = false
-                        }
-
-                        val suggestions = remember(autocompleteQuery, allWikiEntries) {
-                            if (autocompleteQuery.isBlank()) emptyList()
-                            else allWikiEntries.filter { it.tagName.contains(autocompleteQuery, ignoreCase = true) }.take(5)
-                        }
-
-                        AnimatedVisibility(visible = showAutocomplete && suggestions.isNotEmpty()) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                            ) {
-                                LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                                    items(suggestions) { entry ->
-                                        Text(
-                                            text = entry.tagName,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable {
-                                                    val textBefore = description.text.substring(0, lastOpenBracket)
-                                                    val textAfter = description.text.substring(cursorPosition)
-                                                    val insertedText = "[[${entry.tagName}]] "
-                                                    val newText = textBefore + insertedText + textAfter
-                                                    val newCursorPos = textBefore.length + insertedText.length
-                                                    description = androidx.compose.ui.text.input.TextFieldValue(
-                                                        text = newText,
-                                                        selection = androidx.compose.ui.text.TextRange(newCursorPos)
-                                                    )
-                                                    showAutocomplete = false
-                                                }
-                                                .padding(16.dp)
-                                        )
-                                        HorizontalDivider()
+                // references
+                item { Text("External references", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                itemsIndexed(references) { index, ref ->
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            key(isPrivacyKeyboardEnabled) {
+                                OutlinedTextField(
+                                    value = ref.siteName,
+                                    onValueChange = { references[index] = ref.copy(siteName = it.replace("\n", "")) },
+                                    label = { Text("Origin (Ex: Pixiv, Danbooru)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        capitalization = KeyboardCapitalization.Words,
+                                        autoCorrectEnabled = !isPrivacyKeyboardEnabled,
+                                        keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
+                                        imeAction = ImeAction.Next
+                                    )
+                                )
+                            }
+                            key(isPrivacyKeyboardEnabled) {
+                                OutlinedTextField(
+                                    value = ref.originalTag,
+                                    onValueChange = { references[index] = ref.copy(originalTag = it.replace("\n", "")) },
+                                    label = { Text("Original Tag (Optional)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        capitalization = KeyboardCapitalization.Unspecified,
+                                        autoCorrectEnabled = !isPrivacyKeyboardEnabled,
+                                        keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
+                                        imeAction = ImeAction.Next
+                                    )
+                                )
+                            }
+                            key(isPrivacyKeyboardEnabled) {
+                                OutlinedTextField(
+                                    value = ref.romaji,
+                                    onValueChange = { references[index] = ref.copy(romaji = it.replace("\n", "")) },
+                                    label = { Text("Tag in romaji (Optional)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        capitalization = KeyboardCapitalization.Words,
+                                        autoCorrectEnabled = !isPrivacyKeyboardEnabled,
+                                        keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
+                                        imeAction = ImeAction.Next
+                                    )
+                                )
+                            }
+                            key(isPrivacyKeyboardEnabled) {
+                                OutlinedTextField(
+                                    value = ref.url,
+                                    onValueChange = { references[index] = ref.copy(url = it.replace("\n", "")) },
+                                    label = { Text("URL") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Uri,
+                                        capitalization = KeyboardCapitalization.Unspecified,
+                                        autoCorrectEnabled = false,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    trailingIcon = {
+                                        IconButton(onClick = { try { uriHandler.openUri(ref.url) } catch(_: Exception) {} }) {
+                                            Icon(Icons.AutoMirrored.Filled.OpenInNew, "Open")
+                                        }
                                     }
-                                }
+                                )
+                            }
+                            IconButton(onClick = { references.removeAt(index) }, modifier = Modifier.align(Alignment.End)) {
+                                Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
                 }
-            }
-
-            // aliases
-            item { Text("Aliases", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-            itemsIndexed(aliases) { index, alias ->
-                key(isPrivacyKeyboardEnabled) {
-                    OutlinedTextField(
-                        value = alias,
-                        onValueChange = { aliases[index] = it.replace("\n", "") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        trailingIcon = {
-                            IconButton(onClick = { aliases.removeAt(index) }) { Icon(Icons.Default.Delete, "Delete") }
-                        },
-                        keyboardOptions = KeyboardOptions(
-                            capitalization = KeyboardCapitalization.Unspecified,
-                            autoCorrectEnabled = !isPrivacyKeyboardEnabled,
-                            keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
-                            imeAction = ImeAction.Done
-                        )
-                    )
-                }
-            }
-            item {
-                OutlinedButton(onClick = { aliases.add("") }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Add, null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Add alias")
-                }
-            }
-
-            // references
-            item { Text("External references", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-            itemsIndexed(references) { index, ref ->
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        key(isPrivacyKeyboardEnabled) {
-                            OutlinedTextField(
-                                value = ref.siteName,
-                                onValueChange = { references[index] = ref.copy(siteName = it.replace("\n", "")) },
-                                label = { Text("Origin (Ex: Pixiv, Danbooru)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    capitalization = KeyboardCapitalization.Words,
-                                    autoCorrectEnabled = !isPrivacyKeyboardEnabled,
-                                    keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
-                                    imeAction = ImeAction.Next
-                                )
-                            )
-                        }
-                        key(isPrivacyKeyboardEnabled) {
-                            OutlinedTextField(
-                                value = ref.originalTag,
-                                onValueChange = { references[index] = ref.copy(originalTag = it.replace("\n", "")) },
-                                label = { Text("Original Tag (Optional)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    capitalization = KeyboardCapitalization.Unspecified,
-                                    autoCorrectEnabled = !isPrivacyKeyboardEnabled,
-                                    keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
-                                    imeAction = ImeAction.Next
-                                )
-                            )
-                        }
-                        key(isPrivacyKeyboardEnabled) {
-                            OutlinedTextField(
-                                value = ref.romaji,
-                                onValueChange = { references[index] = ref.copy(romaji = it.replace("\n", "")) },
-                                label = { Text("Tag in romaji (Optional)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    capitalization = KeyboardCapitalization.Words,
-                                    autoCorrectEnabled = !isPrivacyKeyboardEnabled,
-                                    keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
-                                    imeAction = ImeAction.Next
-                                )
-                            )
-                        }
-                        key(isPrivacyKeyboardEnabled) {
-                            OutlinedTextField(
-                                value = ref.url,
-                                onValueChange = { references[index] = ref.copy(url = it.replace("\n", "")) },
-                                label = { Text("URL") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Uri,
-                                    capitalization = KeyboardCapitalization.Unspecified,
-                                    autoCorrectEnabled = false,
-                                    imeAction = ImeAction.Done
-                                ),
-                                trailingIcon = {
-                                    IconButton(onClick = { try { uriHandler.openUri(ref.url) } catch(_: Exception) {} }) {
-                                        Icon(Icons.AutoMirrored.Filled.OpenInNew, "Open")
-                                    }
-                                }
-                            )
-                        }
-                        IconButton(onClick = { references.removeAt(index) }, modifier = Modifier.align(Alignment.End)) {
-                            Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-            }
-            item {
-                OutlinedButton(onClick = { references.add(WikiReference("", "", ""))}, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Add, null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Add reference")
-                }
-            }
-
-            // delete button
-            if (initialTag.isNotEmpty()) {
                 item {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = { showDeleteConfirm = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFD32F2F),
-                            contentColor = Color.White
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.DeleteForever, null)
+                    OutlinedButton(onClick = { references.add(WikiReference("", "", ""))}, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Add, null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Remove tag from wiki")
+                        Text("Add reference")
                     }
-                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                // delete button
+                if (initialTag.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(
+                            onClick = { showDeleteConfirm = true },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFD32F2F),
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.DeleteForever, null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Remove tag from wiki")
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
                 }
             }
         }
-    }
 
-    // remove confirmation
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Are you sure?") },
-            text = { Text("This will NOT DELETE '${initialTag}' from Hydrus, only remove the description, alias and references from the tag wiki.\n\nIf you want to delete the tag from Hydrus, remove the tags from the files or use Hydrus to replace it with a different one.") },
-            confirmButton = {
-                TextButton(
-                    onClick = { showDeleteConfirm = false; onDelete(initialTag); onDismiss() },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD32F2F))
-                ) { Text("Remove permanently") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
-            }
-        )
+        // remove confirmation
+        if (showDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                title = { Text("Are you sure?") },
+                text = { Text("This will NOT DELETE '${initialTag}' from Hydrus, only remove the description, alias and references from the tag wiki.\n\nIf you want to delete the tag from Hydrus, remove the tags from the files or use Hydrus to replace it with a different one.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = { showDeleteConfirm = false; onDelete(initialTag); onDismiss() },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFD32F2F))
+                    ) { Text("Remove permanently") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+                }
+            )
+        }
     }
 }
 
@@ -1051,7 +1054,6 @@ fun WikiScreen(
 }
 
 
-// tag details window
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TagDetailDialog(
@@ -1060,15 +1062,18 @@ fun TagDetailDialog(
     isMuted: Boolean,
     onMuteToggle: () -> Unit,
     onDismiss: () -> Unit,
-    onEditClick: () -> Unit,
+    onEditClick: (TagWikiEntity) -> Unit,
     onOpenExample: (List<com.asadtoast.aether.data.FileMetadata>, Int) -> Unit,
     onTagLinkClick: (String) -> Unit = {}
 ) {
     val uriHandler = LocalUriHandler.current
     val previewFiles by wikiViewModel.exampleImages.collectAsState()
 
-    LaunchedEffect(entryDetail.tagName) {
-        wikiViewModel.fetchExampleImagesForTag(entryDetail.tagName)
+    val allEntries by wikiViewModel.allWikiEntries.collectAsState(initial = emptyList())
+    val currentEntry = allEntries.find { it.tagName == entryDetail.tagName } ?: entryDetail
+
+    LaunchedEffect(currentEntry.tagName) {
+        wikiViewModel.fetchExampleImagesForTag(currentEntry.tagName)
     }
 
     androidx.activity.compose.BackHandler(onBack = onDismiss)
@@ -1079,7 +1084,7 @@ fun TagDetailDialog(
             TopAppBar(
                 title = {
                     Text(
-                        entryDetail.tagName,
+                        currentEntry.tagName,
                         color = if (isMuted) Color.Gray else Color.Unspecified,
                         textDecoration = if (isMuted) TextDecoration.LineThrough else TextDecoration.None
                     )
@@ -1098,7 +1103,7 @@ fun TagDetailDialog(
                             tint = if (isMuted) Color.Red else LocalContentColor.current
                         )
                     }
-                    IconButton(onClick = onEditClick) {
+                    IconButton(onClick = { onEditClick(currentEntry) }) {
                         Icon(Icons.Default.Edit, "Edit tag")
                     }
                 }
@@ -1216,9 +1221,9 @@ fun TagDetailDialog(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    entryDetail.tagName,
+                    currentEntry.tagName,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = getNamespaceColor(entryDetail.tagName)
+                    color = getNamespaceColor(currentEntry.tagName)
                 )
             }
 
@@ -1229,15 +1234,15 @@ fun TagDetailDialog(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                if (entryDetail.description.isNotEmpty()) {
+                if (currentEntry.description.isNotEmpty()) {
                     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
 
-                    val annotatedDescription = remember(entryDetail.description) {
+                    val annotatedDescription = remember(currentEntry.description) {
                         androidx.compose.ui.text.buildAnnotatedString {
                             val regex = Regex("\\[\\[(.*?)]]")
                             var lastIndex = 0
-                            regex.findAll(entryDetail.description).forEach { matchResult ->
-                                append(entryDetail.description.substring(lastIndex, matchResult.range.first))
+                            regex.findAll(currentEntry.description).forEach { matchResult ->
+                                append(currentEntry.description.substring(lastIndex, matchResult.range.first))
 
                                 val tag = matchResult.groupValues[1]
                                 pushStringAnnotation(tag = "WIKI_LINK", annotation = tag)
@@ -1252,7 +1257,7 @@ fun TagDetailDialog(
 
                                 lastIndex = matchResult.range.last + 1
                             }
-                            append(entryDetail.description.substring(lastIndex))
+                            append(currentEntry.description.substring(lastIndex))
                         }
                     }
 
@@ -1282,8 +1287,8 @@ fun TagDetailDialog(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                if (entryDetail.aliases.isNotEmpty()) {
-                    entryDetail.aliases.forEach { alias ->
+                if (currentEntry.aliases.isNotEmpty()) {
+                    currentEntry.aliases.forEach { alias ->
                         Text("• $alias", style = MaterialTheme.typography.bodyLarge)
                     }
                 } else {
@@ -1302,8 +1307,8 @@ fun TagDetailDialog(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                if (entryDetail.references.isNotEmpty()) {
-                    entryDetail.references.forEach { ref ->
+                if (currentEntry.references.isNotEmpty()) {
+                    currentEntry.references.forEach { ref ->
                         val displayText = if (ref.originalTag.isNotBlank()) {
                             "${ref.siteName} (${ref.originalTag})"
                         } else {

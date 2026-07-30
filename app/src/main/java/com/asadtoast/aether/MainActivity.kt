@@ -302,8 +302,8 @@ class MainActivity : ComponentActivity() {
                                                     onDismiss = {
                                                         overlayStack = overlayStack.dropLast(1)
                                                     },
-                                                    onEditClick = {
-                                                        overlayStack = overlayStack + AppOverlay.EditTagWiki(currentOverlay.entity)
+                                                    onEditClick = { updatedEntity ->
+                                                        overlayStack = overlayStack + AppOverlay.EditTagWiki(updatedEntity)
                                                     },
                                                     onOpenExample = { list, index ->
                                                         overlayStack =
