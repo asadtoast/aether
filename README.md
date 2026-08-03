@@ -30,4 +30,4 @@ As far as I have tested, the app is capable of working with both local (within t
 ## Getting started
 For your convenience, you can find an up to date, unsigned and precompiled android apk in the releases section.
 
-Check here for details on how to use all the available options of the app.
+Check [here](https://github.com/asadtoast/aether/wiki) for details on how to use all the available options of the app.
