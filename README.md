@@ -20,7 +20,7 @@ My idea is to bring the convenience of a processed or in process hydrus gallery 
 - Archive / delete processing of the searched context
 <br>
 
-<img width="360" height="732" alt="archive_delete" src="https://github.com/user-attachments/assets/d4602251-ed12-4b95-ac3b-2c8489417db1" />
+<img width="360" height="732" alt="archive_delete_example" src="https://github.com/user-attachments/assets/38d9cec2-c75d-45a0-872b-8a1c58217f02" />
 <br><br>
   
 - Simple duplicate processing
