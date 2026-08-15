@@ -43,7 +43,6 @@ fun DuplicateProcessingScreen(
     val serverIp by settingsManager.serverIpFlow.collectAsState(initial = "")
     val port by settingsManager.serverPortFlow.collectAsState(initial = "")
 
-
     DisposableEffect(Unit) {
         val window = (context as? Activity)?.window
         if (window != null) {
@@ -105,7 +104,6 @@ fun DuplicateProcessingScreen(
             // image layers
             DuplicateImageLayer(currentPair.hash_a, apiKey, serverIp, port, isVisible = !showImageB)
             DuplicateImageLayer(currentPair.hash_b, apiKey, serverIp, port, isVisible = showImageB)
-
 
             // overlay
             val activeMeta = if (showImageB) currentPair.meta_b else currentPair.meta_a

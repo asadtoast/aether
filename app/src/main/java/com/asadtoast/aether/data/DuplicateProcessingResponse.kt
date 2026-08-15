@@ -25,3 +25,7 @@ data class DuplicatePair(
     val meta_a: FileMetadata,
     val meta_b: FileMetadata
 )
+
+data class PotentialsCountResponse(
+    val potential_duplicates_count: Int
+)

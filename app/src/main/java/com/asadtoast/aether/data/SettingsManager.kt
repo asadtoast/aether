@@ -60,9 +60,6 @@ class SettingsManager(private val context: Context) {
     suspend fun saveHideZip(enabled: Boolean) {
         context.dataStore.edit { it[HIDE_ZIP_KEY] = enabled }
     }
-    suspend fun saveHideVideos(enabled: Boolean) {
-        context.dataStore.edit { it[HIDE_VIDEOS_KEY] = enabled }
-    }
     suspend fun saveGifAutoLoop(enabled: Boolean) {
         context.dataStore.edit { it[GIF_AUTO_LOOP_KEY] = enabled }
     }

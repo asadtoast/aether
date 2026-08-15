@@ -104,6 +104,11 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
         if (response.isSuccessful) response.body() else throw Exception("Pairs fetch failed: ${response.code()}")
     }
 
+    suspend fun getPotentialPairsCount() = safeApiCall {
+        val response = getApi().getPotentialsCount(getApiKey())
+        if (response.isSuccessful) response.body() else throw Exception("Pairs count fetch failed: ${response.code()}")
+    }
+
     suspend fun setFileRelationships(request: SetFileRelationshipsRequest) = safeApiCall {
         val response = getApi().setFileRelationships(getApiKey(), request)
         if (!response.isSuccessful) throw Exception("Relationship set failed: ${response.code()}")

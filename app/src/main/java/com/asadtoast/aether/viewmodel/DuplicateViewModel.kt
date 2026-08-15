@@ -39,32 +39,25 @@ class DuplicateViewModel(
 
     private var allPendingPairs = mutableListOf<List<String>>()
 
-    private fun updateCounts() {
-        val loadedPairsCount = _duplicatePairs.value.size
-        _totalPairsCount.value = loadedPairsCount + allPendingPairs.size
-
-        val loadedHashes = _duplicatePairs.value.flatMap { listOf(it.hash_a, it.hash_b) }
-        val pendingHashes = allPendingPairs.flatten()
-        _totalFilesCount.value = (loadedHashes + pendingHashes).distinct().size
-    }
-
     fun fetchDuplicatePotentials() {
         viewModelScope.launch {
+            val realCount = hydrusRepository.getPotentialPairsCount().getOrNull()?.potential_duplicates_count
+
             hydrusRepository.getPotentialPairs()
                 .onSuccess { response ->
                     val pairs = response?.potential_duplicate_pairs ?: return@onSuccess
                     allPendingPairs = pairs.toMutableList()
+                    _totalPairsCount.value = realCount ?: pairs.size
+                    _totalFilesCount.value = pairs.flatten().distinct().size
                     loadNextBatch()
                 }
                 .onFailure { _ ->
                 }
         }
     }
-
     private fun loadNextBatch() {
         if (allPendingPairs.isEmpty()) {
             _duplicatePairs.value = emptyList()
-            updateCounts()
             return
         }
 
@@ -113,7 +106,6 @@ class DuplicateViewModel(
                     }
 
                     _duplicatePairs.value = finalPairs
-                    updateCounts()
                 }
                 .onFailure { _ ->
                 }
@@ -159,7 +151,7 @@ class DuplicateViewModel(
                 _duplicatePairs.value = currentList
             }
 
-            updateCounts()
+            _totalPairsCount.value -= 1
 
             if (_duplicatePairs.value.isEmpty()) {
                 if (allPendingPairs.isNotEmpty()) {
@@ -207,7 +199,7 @@ class DuplicateViewModel(
             currentList.add(0, pairToRestore)
             _duplicatePairs.value = currentList
 
-            updateCounts()
+            _totalPairsCount.value += 1
         }
     }
 }

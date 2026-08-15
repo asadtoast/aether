@@ -95,9 +95,16 @@ interface HydrusApiService {
         @Query("search") search: String
     ): Response<SearchTagsResponse>
 
+    @GET("manage_file_relationships/get_potentials_count")
+    suspend fun getPotentialsCount(
+        @Header("Hydrus-Client-API-Access-Key") apiKey: String,
+        @Query("search_domain") searchDomain: String? = null
+    ): Response<com.asadtoast.aether.data.PotentialsCountResponse>
+
     @GET("manage_file_relationships/get_potential_pairs")
     suspend fun getPotentialPairs(
         @Header("Hydrus-Client-API-Access-Key") apiKey: String,
+        @Query("search_domain") searchDomain: String? = null,
         @Query("max_num_pairs") maxNumPairs: Int = 20 // 20 at a time
     ): Response<PotentialPairsResponse>
 

@@ -158,7 +158,7 @@ fun FullScreenEditDialog(
                         OutlinedTextField(
                             value = currentTagName,
                             onValueChange = { currentTagName = it.replace("\n", "") },
-                            label = { Text("Hydrus filename") },
+                            label = { Text("Hydrus tag") },
                             readOnly = initialTag.isNotEmpty(),
                             enabled = initialTag.isEmpty(),
                             modifier = Modifier.fillMaxWidth(),
