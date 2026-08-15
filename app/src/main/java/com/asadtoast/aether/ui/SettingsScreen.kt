@@ -39,7 +39,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.asadtoast.aether.data.SettingsManager
-import com.asadtoast.aether.viewmodel.HydrusViewModel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
@@ -47,8 +46,8 @@ import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun SettingsScreen(
-    viewModel: HydrusViewModel,
     settingsManager: SettingsManager,
+    onTestConnection: suspend (ip: String, port: String, apiKey: String) -> Boolean,
     onSettingsSaved: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -65,6 +64,10 @@ fun SettingsScreen(
     val hidePdf by settingsManager.hidePdfFlow.collectAsState(initial = false)
     val hidePsd by settingsManager.hidePsdFlow.collectAsState(initial = false)
     val hideZip by settingsManager.hideZipFlow.collectAsState(initial = false)
+
+    // max hamming distance
+    val currentMaxHamming by settingsManager.maxHammingDistanceFlow.collectAsState(initial = 4)
+    var maxHammingState by remember(currentMaxHamming) { mutableFloatStateOf(currentMaxHamming.toFloat()) }
 
     var ipInput by remember(currentIp) { mutableStateOf(currentIp.ifEmpty { "127.0.0.1" }) }
     var portInput by remember { mutableStateOf("45869") }
@@ -172,8 +175,9 @@ fun SettingsScreen(
                     }
 
                     try {
+                        val success = onTestConnection(ipInput, portInput, apiKeyInput)
                         animJob.cancel()
-                        connectionStatus = "Success!"
+                        connectionStatus = if (success) "Success!" else "Error: check settings"
 
                     } catch (_: Exception) {
                         // if wrong, error
@@ -243,7 +247,16 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // thumbnail column slider
+        // gallery settings
+        Text(
+            text = "Gallery settings",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // thumbnail column count slider
         Text(
             text = "Gallery columns: ${gridColumnsState.toInt()}",
             style = MaterialTheme.typography.bodyLarge
@@ -258,6 +271,34 @@ fun SettingsScreen(
             },
             valueRange = 1f..6f,
             steps = 4
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // duplicate processing settings
+        Text(
+            text = "Duplicate processing settings",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // search distance slider
+        Text(
+            text = "Search distance slider: ${maxHammingState.toInt()}",
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Slider(
+            value = maxHammingState,
+            onValueChange = { maxHammingState = it },
+            onValueChangeFinished = {
+                coroutineScope.launch {
+                    settingsManager.saveMaxHammingDistance(maxHammingState.toInt())
+                }
+            },
+            valueRange = 0f..8f,
+            steps = 3
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -280,7 +321,11 @@ fun SettingsScreen(
             Text("Hide PDF", style = MaterialTheme.typography.bodyMedium)
             Switch(
                 checked = hidePdf,
-                onCheckedChange = { viewModel.saveHidePdf(it) }
+                onCheckedChange = { isEnabled ->
+                    coroutineScope.launch {
+                        settingsManager.saveHidePdf(isEnabled)
+                    }
+                }
             )
         }
 
@@ -293,7 +338,11 @@ fun SettingsScreen(
             Text("Hide PSD", style = MaterialTheme.typography.bodyMedium)
             Switch(
                 checked = hidePsd,
-                onCheckedChange = { viewModel.saveHidePsd(it) }
+                onCheckedChange = { isEnabled ->
+                    coroutineScope.launch {
+                        settingsManager.saveHidePsd(isEnabled)
+                    }
+                }
             )
         }
 
@@ -306,7 +355,11 @@ fun SettingsScreen(
             Text("Hide ZIP", style = MaterialTheme.typography.bodyMedium)
             Switch(
                 checked = hideZip,
-                onCheckedChange = { viewModel.saveHideZip(it) }
+                onCheckedChange = { isEnabled ->
+                    coroutineScope.launch {
+                        settingsManager.saveHideZip(isEnabled)
+                    }
+                }
             )
         }
 

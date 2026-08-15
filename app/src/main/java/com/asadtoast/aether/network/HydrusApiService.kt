@@ -27,7 +27,8 @@ interface HydrusApiService {
         @Query("tags") tags: String,
         @Query("file_sort_type") sortType: Int? = null,
         @Query("file_sort_asc") sortAsc: Boolean? = null,
-        @Query("file_service_name") fileServiceName: String
+        @Query("file_service_name") fileServiceName: String,
+        @Query("return_file_ids") returnFileIds: Boolean = true
     ): SearchFilesResponse
 
     @GET("get_files/file_metadata")
@@ -98,13 +99,15 @@ interface HydrusApiService {
     @GET("manage_file_relationships/get_potentials_count")
     suspend fun getPotentialsCount(
         @Header("Hydrus-Client-API-Access-Key") apiKey: String,
-        @Query("search_domain") searchDomain: String? = null
+        @Query("search_domain") searchDomain: String? = null,
+        @Query("max_hamming_distance") maxHammingDistance: Int? = null
     ): Response<com.asadtoast.aether.data.PotentialsCountResponse>
 
     @GET("manage_file_relationships/get_potential_pairs")
     suspend fun getPotentialPairs(
         @Header("Hydrus-Client-API-Access-Key") apiKey: String,
         @Query("search_domain") searchDomain: String? = null,
+        @Query("max_hamming_distance") maxHammingDistance: Int? = null,
         @Query("max_num_pairs") maxNumPairs: Int = 20 // 20 at a time
     ): Response<PotentialPairsResponse>
 

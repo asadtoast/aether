@@ -7,9 +7,11 @@ import com.asadtoast.aether.data.FileMetadata
 import com.asadtoast.aether.data.FileRelationship
 import com.asadtoast.aether.data.HydrusRepository
 import com.asadtoast.aether.data.SetFileRelationshipsRequest
+import com.asadtoast.aether.data.SettingsManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.collections.flatten
 
@@ -23,7 +25,8 @@ enum class DuplicateAction {
 }
 
 class DuplicateViewModel(
-    private val hydrusRepository: HydrusRepository
+    private val hydrusRepository: HydrusRepository,
+    private val settingsManager: SettingsManager
 ) : ViewModel() {
 
     private val historyStack = mutableListOf<HistoryEntry>()
@@ -34,33 +37,63 @@ class DuplicateViewModel(
     private val _totalPairsCount = MutableStateFlow(0)
     val totalPairsCount: StateFlow<Int> = _totalPairsCount.asStateFlow()
 
-    private val _totalFilesCount = MutableStateFlow(0)
-    val totalFilesCount: StateFlow<Int> = _totalFilesCount.asStateFlow()
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private var allPendingPairs = mutableListOf<List<String>>()
 
-    fun fetchDuplicatePotentials() {
-        viewModelScope.launch {
-            val realCount = hydrusRepository.getPotentialPairsCount().getOrNull()?.potential_duplicates_count
+    private var lastUsedDistance: Int? = null
 
-            hydrusRepository.getPotentialPairs()
+    init {
+        viewModelScope.launch {
+            settingsManager.maxHammingDistanceFlow.collect { distance ->
+                if (lastUsedDistance != distance) {
+                    lastUsedDistance = distance
+                    historyStack.clear()
+                    allPendingPairs.clear()
+                    _duplicatePairs.value = emptyList()
+                    _totalPairsCount.value = 0
+                    _isLoading.value = false
+                    fetchDuplicatePotentials()
+                }
+            }
+        }
+    }
+
+    fun fetchDuplicatePotentials() {
+        if (_isLoading.value) return
+        _isLoading.value = true
+
+        viewModelScope.launch {
+            val distance = settingsManager.maxHammingDistanceFlow.first()
+            lastUsedDistance = distance
+
+            val realCount = hydrusRepository.getPotentialPairsCount(distance).getOrNull()?.potential_duplicates_count
+
+            hydrusRepository.getPotentialPairs(distance)
                 .onSuccess { response ->
-                    val pairs = response?.potential_duplicate_pairs ?: return@onSuccess
+                    val pairs = response?.potential_duplicate_pairs ?: run {
+                        _isLoading.value = false
+                        return@onSuccess
+                    }
                     allPendingPairs = pairs.toMutableList()
                     _totalPairsCount.value = realCount ?: pairs.size
-                    _totalFilesCount.value = pairs.flatten().distinct().size
                     loadNextBatch()
                 }
                 .onFailure { _ ->
+                    _isLoading.value = false
                 }
         }
     }
+
     private fun loadNextBatch() {
         if (allPendingPairs.isEmpty()) {
             _duplicatePairs.value = emptyList()
+            _isLoading.value = false
             return
         }
 
+        _isLoading.value = true
         val batchedPairs = allPendingPairs.take(15)
         allPendingPairs = allPendingPairs.drop(15).toMutableList()
 
@@ -106,8 +139,10 @@ class DuplicateViewModel(
                     }
 
                     _duplicatePairs.value = finalPairs
+                    _isLoading.value = false
                 }
                 .onFailure { _ ->
+                    _isLoading.value = false
                 }
         }
     }

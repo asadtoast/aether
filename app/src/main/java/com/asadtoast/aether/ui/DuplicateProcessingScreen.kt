@@ -34,7 +34,7 @@ fun DuplicateProcessingScreen(
 ) {
     val duplicatePairs by viewModel.duplicatePairs.collectAsState()
     val totalPairsCount by viewModel.totalPairsCount.collectAsState()
-    val totalFilesCount by viewModel.totalFilesCount.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     val currentPair = duplicatePairs.firstOrNull()
 
     val context = LocalContext.current
@@ -69,11 +69,15 @@ fun DuplicateProcessingScreen(
 
     if (currentPair == null) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("No duplicates available for processing", color = Color.White)
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = onNavigateBack) {
-                    Text("Go back")
+            if (isLoading) {
+                CircularProgressIndicator(color = Color.White)
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("No duplicates available for processing", color = Color.White)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onNavigateBack) {
+                        Text("Go back")
+                    }
                 }
             }
         }
@@ -83,133 +87,153 @@ fun DuplicateProcessingScreen(
     // status to decide which picture gets shown when holding
     var showImageB by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
-        // image viewer
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = {
-                            showImageB = true
-                            tryAwaitRelease()
-                            showImageB = false
-                        }
-                    )
-                },
-            contentAlignment = Alignment.TopStart
-        ) {
-            // image layers
-            DuplicateImageLayer(currentPair.hash_a, apiKey, serverIp, port, isVisible = !showImageB)
-            DuplicateImageLayer(currentPair.hash_b, apiKey, serverIp, port, isVisible = showImageB)
-
-            // overlay
-            val activeMeta = if (showImageB) currentPair.meta_b else currentPair.meta_a
-            FileMetadataOverlay(
-                size = activeMeta.size ?: 0L,
-                width = activeMeta.width ?: 0,
-                height = activeMeta.height ?: 0,
-                tagCount = activeMeta.tagCount,
+            // image viewer
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 25.dp, end = 25.dp)
-            )
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                showImageB = true
+                                tryAwaitRelease()
+                                showImageB = false
+                            }
+                        )
+                    },
+                contentAlignment = Alignment.TopStart
+            ) {
+                // image layers
+                DuplicateImageLayer(currentPair.hash_a, apiKey, serverIp, port, isVisible = !showImageB)
+                DuplicateImageLayer(currentPair.hash_b, apiKey, serverIp, port, isVisible = showImageB)
 
-            // A/B visual indicator
-            Text(
-                text = if (showImageB) "B" else "A",
-                color = Color.Red.copy(alpha = 0.8f),
-                fontSize = 80.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(16.dp)
-            )
+                // overlay
+                val activeMeta = if (showImageB) currentPair.meta_b else currentPair.meta_a
+                FileMetadataOverlay(
+                    size = activeMeta.size ?: 0L,
+                    width = activeMeta.width ?: 0,
+                    height = activeMeta.height ?: 0,
+                    tagCount = activeMeta.tagCount,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 25.dp, end = 25.dp)
+                )
 
-            // HUD for remaining counts
-            Text(
-                text = "Pairs: $totalPairsCount | Files: $totalFilesCount",
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                // A/B visual indicator
+                Text(
+                    text = if (showImageB) "B" else "A",
+                    color = Color.Red.copy(alpha = 0.8f),
+                    fontSize = 80.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(16.dp)
+                )
+
+                // HUD for remaining counts
+                Text(
+                    text = "Remaining: $totalPairsCount",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 25.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), shape = MaterialTheme.shapes.small)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+
+            // bottom control panel
+            Column(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 25.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), shape = MaterialTheme.shapes.small)
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+                    .fillMaxWidth()
+                    .background(Color.DarkGray)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // row 1: main
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.A_IS_BETTER) },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isLoading
+                    ) {
+                        Text("A is better", textAlign = TextAlign.Center)
+                    }
+                    Button(
+                        onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.B_IS_BETTER) },
+                        modifier = Modifier.weight(1f),
+                        enabled = !isLoading
+                    ) {
+                        Text("B is better", textAlign = TextAlign.Center)
+                    }
+                }
+
+                // row 2: alternates
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.ALTERNATES) },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.weight(1f),
+                        enabled = !isLoading
+                    ) {
+                        Text("Alternates", textAlign = TextAlign.Center)
+                    }
+                    OutlinedButton(
+                        onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.FALSE_POSITIVE) },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.weight(1f),
+                        enabled = !isLoading
+                    ) {
+                        Text("False Pos.", textAlign = TextAlign.Center)
+                    }
+                }
+
+                // row 3: destructive
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.DELETE_BOTH) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E)),
+                        modifier = Modifier.weight(1f),
+                        enabled = !isLoading
+                    ) {
+                        Text("Delete Both", textAlign = TextAlign.Center, color = Color.White)
+                    }
+                    OutlinedButton(
+                        onClick = { viewModel.undoLastAction() },
+                        modifier = Modifier.weight(0.5f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        enabled = !isLoading
+                    ) {
+                        Text("Undo", textAlign = TextAlign.Center)
+                    }
+                    TextButton(
+                        onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.SKIP) },
+                        modifier = Modifier.weight(0.5f),
+                        enabled = !isLoading
+                    ) {
+                        Text("Skip", textAlign = TextAlign.Center, color = Color.LightGray)
+                    }
+                }
+            }
         }
 
-        // bottom control panel
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.DarkGray)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // row 1: main
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.A_IS_BETTER) },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("A is better", textAlign = TextAlign.Center)
-                }
-                Button(
-                    onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.B_IS_BETTER) },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("B is better", textAlign = TextAlign.Center)
-                }
-            }
-
-            // row 2: alternates
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.ALTERNATES) },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Alternates", textAlign = TextAlign.Center)
-                }
-                OutlinedButton(
-                    onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.FALSE_POSITIVE) },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("False Pos.", textAlign = TextAlign.Center)
-                }
-            }
-
-            // row 3: destructive
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.DELETE_BOTH) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E)),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Delete Both", textAlign = TextAlign.Center, color = Color.White)
-                }
-                OutlinedButton(
-                    onClick = { viewModel.undoLastAction() },
-                    modifier = Modifier.weight(0.5f),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Text("Undo", textAlign = TextAlign.Center)
-                }
-                TextButton(
-                    onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.SKIP) },
-                    modifier = Modifier.weight(0.5f)
-                ) {
-                    Text("Skip", textAlign = TextAlign.Center, color = Color.LightGray)
-                }
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color.White)
             }
         }
     }

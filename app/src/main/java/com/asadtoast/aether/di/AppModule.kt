@@ -38,6 +38,6 @@ val appModule = module {
 
     // viewmodels
     viewModel { HydrusViewModel(get(), get(), get()) }
-    viewModel { DuplicateViewModel(get()) }
+    viewModel { DuplicateViewModel(get(), get()) }
     viewModel { WikiViewModel(get(), get(), get(), get()) }
 }

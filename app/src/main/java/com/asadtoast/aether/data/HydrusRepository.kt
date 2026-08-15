@@ -99,13 +99,13 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
         if (response.isSuccessful) response.body() else throw Exception("Tag search failed: ${response.code()}")
     }
 
-    suspend fun getPotentialPairs() = safeApiCall {
-        val response = getApi().getPotentialPairs(getApiKey())
+    suspend fun getPotentialPairs(maxHammingDistance: Int? = null) = safeApiCall {
+        val response = getApi().getPotentialPairs(getApiKey(), maxHammingDistance = maxHammingDistance)
         if (response.isSuccessful) response.body() else throw Exception("Pairs fetch failed: ${response.code()}")
     }
 
-    suspend fun getPotentialPairsCount() = safeApiCall {
-        val response = getApi().getPotentialsCount(getApiKey())
+    suspend fun getPotentialPairsCount(maxHammingDistance: Int? = null) = safeApiCall {
+        val response = getApi().getPotentialsCount(getApiKey(), maxHammingDistance = maxHammingDistance)
         if (response.isSuccessful) response.body() else throw Exception("Pairs count fetch failed: ${response.code()}")
     }
 
@@ -131,4 +131,12 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
 
     suspend fun unarchiveFile(fileId: Long? = null, hash: String? = null) =
         performFileAction(fileId, hash) { api, req -> api.unarchiveFile(getApiKey(), req) }
+
+    suspend fun testConnection(ip: String, port: String, apiKey: String): Boolean {
+        val result = safeApiCall {
+            val tempApi = HydrusNetwork.getApi(ip, port)
+            tempApi.verifyAccessKey(apiKey)
+        }
+        return result.isSuccess
+    }
 }

@@ -31,6 +31,7 @@ class SettingsManager(private val context: Context) {
         val GIF_AUTO_LOOP_KEY = booleanPreferencesKey("gif_auto_loop")
         val VISIBLE_CATEGORIES_KEY = stringSetPreferencesKey("visible_categories")
         val PRIVACY_KEYBOARD_KEY = booleanPreferencesKey("privacy_keyboard")
+        val MAX_HAMMING_DISTANCE_KEY = intPreferencesKey("max_hamming_distance")
 
         val DEFAULT_CATEGORIES = setOf("creator", "artist", "series", "copyright", "character", "general", "system", "meta")
     }
@@ -69,6 +70,9 @@ class SettingsManager(private val context: Context) {
     suspend fun savePrivacyKeyboard(enabled: Boolean) {
         context.dataStore.edit { it[PRIVACY_KEYBOARD_KEY] = enabled }
     }
+    suspend fun saveMaxHammingDistance(distance: Int) {
+        context.dataStore.edit { it[MAX_HAMMING_DISTANCE_KEY] = distance }
+    }
 
     val apiKeyFlow: Flow<String> = context.dataStore.data.map { it[API_KEY] ?: "" }
     val serverIpFlow: Flow<String> = context.dataStore.data.map { it[SERVER_IP] ?: "127.0.0.1" }
@@ -97,4 +101,5 @@ class SettingsManager(private val context: Context) {
     val gifAutoLoopFlow: Flow<Boolean> = context.dataStore.data.map { it[GIF_AUTO_LOOP_KEY] ?: true }
     val visibleCategoriesFlow: Flow<Set<String>> = context.dataStore.data.map { it[VISIBLE_CATEGORIES_KEY] ?: DEFAULT_CATEGORIES }
     val privacyKeyboardFlow: Flow<Boolean> = context.dataStore.data.map { it[PRIVACY_KEYBOARD_KEY] ?: true }
+    val maxHammingDistanceFlow: Flow<Int> = context.dataStore.data.map { it[MAX_HAMMING_DISTANCE_KEY] ?: 4 }
 }
