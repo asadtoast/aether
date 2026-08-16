@@ -978,6 +978,7 @@ fun FullScreenVideoPlayer(
     val context = LocalContext.current
     var isMuted by rememberSaveable { mutableStateOf(true) }
     var showSubtitles by rememberSaveable { mutableStateOf(false) }
+    var isZoomed by rememberSaveable { mutableStateOf(false) }
 
     // retrieve player from pool
     val exoPlayer = remember(context, apiKey) {
@@ -1160,6 +1161,13 @@ fun FullScreenVideoPlayer(
                         )
                     }
                 },
+                update = { playerView ->
+                    playerView.resizeMode = if (isZoomed) {
+                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    } else {
+                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    }
+                },
                 onRelease = { playerView ->
                     playerView.player = null
                 },
@@ -1181,6 +1189,17 @@ fun FullScreenVideoPlayer(
                     ),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    IconButton(
+                        onClick = { isZoomed = !isZoomed },
+                        modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = if (isZoomed) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                            contentDescription = "Toggle Zoom",
+                            tint = Color.White
+                        )
+                    }
+
                     IconButton(
                         onClick = { showSubtitles = !showSubtitles },
                         modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
