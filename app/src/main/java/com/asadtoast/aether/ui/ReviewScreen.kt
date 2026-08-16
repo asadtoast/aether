@@ -66,29 +66,6 @@ fun ReviewScreen(
         }
     }
 
-    // if done, end message (based on absolute end)
-    if (pagedImages.itemCount > 0 && uiState.reviewIndex >= pagedImages.itemCount) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Button(onClick = onClose) { Text("Review completed. Close") }
-        }
-        return
-    }
-
-    // obtain current picture from list
-    val currentImage = if (pagedImages.itemCount > 0 && uiState.reviewIndex < pagedImages.itemCount) {
-        pagedImages[uiState.reviewIndex]
-    } else null
-
-    if (currentImage == null) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Color.White)
-        }
-        return
-    }
-
-    // get highress file always
-    val urlToLoad = currentImage.fileUrl
-
     // intercept android back button
     BackHandler { onClose() }
 
@@ -110,252 +87,281 @@ fun ReviewScreen(
         isPlaying.value = true
     }
 
+    // SINGLE ROOT BOX TO PREVENT LAYOUT SHRINKING
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .pointerInput(Unit) { detectTapGestures { } }
     ) {
-        // layer 1 (background) Image/video fill
-        val mimeStr = currentImage.mime.lowercase()
-        val mimeInt = mimeStr.toIntOrNull() ?: -1
-        val isVideo = mimeInt in listOf(2, 3, 4, 8, 42) ||
-                mimeStr.startsWith("video/") ||
-                mimeStr.contains("webm") ||
-                mimeStr.contains("matroska") ||
-                mimeStr.contains("mkv")
-        val isGif = mimeStr == "image/gif" || mimeInt == 1
-
-        if (isVideo) {
-            androidx.compose.runtime.key(currentImage.id) {
-                val ext = when (mimeInt) {
-                    42 -> ".mkv"
-                    8 -> ".webm"
-                    4 -> ".mp4"
-                    else -> ".mp4"
-                }
-
-                val authenticatedUrl = if (urlToLoad.contains("?")) {
-                    "$urlToLoad&Hydrus-Client-API-Access-Key=$apiKey&ext=$ext"
-                } else {
-                    "$urlToLoad?Hydrus-Client-API-Access-Key=$apiKey&ext=$ext"
-                }
-
-                FullScreenVideoPlayer(
-                    url = authenticatedUrl,
-                    apiKey = apiKey,
-                    mime = currentImage.mime,
-                    isActive = true,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding()
-                        .padding(bottom = 110.dp),
-                    muteButtonAtTop = true,
-                    showSubtitlesButton = false
-                )
+        // if done, end message (based on absolute end)
+        if (pagedImages.itemCount > 0 && uiState.reviewIndex >= pagedImages.itemCount) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Button(onClick = onClose) { Text("Review completed. Close") }
             }
         } else {
-            val animatable = remember { androidx.compose.runtime.mutableStateOf<Animatable?>(null) }
+            // obtain current picture from list
+            val currentImage = if (pagedImages.itemCount > 0 && uiState.reviewIndex < pagedImages.itemCount) {
+                pagedImages[uiState.reviewIndex]
+            } else null
 
-            LaunchedEffect(isPlaying.value, animatable.value) {
-                animatable.value?.let {
-                    if (isPlaying.value) it.start() else it.stop()
+            if (currentImage == null) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Color.White)
                 }
-            }
+            } else {
+                // get highress file always
+                val urlToLoad = currentImage.fileUrl
 
-            Box(modifier = Modifier.fillMaxSize()) {
-                // normal image
-                SubcomposeAsyncImage(
-                    model = coil.request.ImageRequest.Builder(context)
-                        .data(urlToLoad)
-                        .size(coil.size.Size.ORIGINAL)
-                        .setParameter("coil#repeat_count", if (isLooping.value) -1 else 0)
-                        .build(),
-                    contentDescription = "Review",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale.floatValue = (scale.floatValue * zoom).coerceIn(1f, 5f)
-                                offset.value = if (scale.floatValue > 1f) offset.value + pan else Offset.Zero
-                            }
+                // layer 1 (background) Image/video fill
+                val mimeStr = currentImage.mime.lowercase()
+                val mimeInt = mimeStr.toIntOrNull() ?: -1
+                val isVideo = mimeInt in listOf(2, 3, 4, 8, 42) ||
+                        mimeStr.startsWith("video/") ||
+                        mimeStr.contains("webm") ||
+                        mimeStr.contains("matroska") ||
+                        mimeStr.contains("mkv")
+                val isGif = mimeStr == "image/gif" || mimeInt == 1
+
+                if (isVideo) {
+                    androidx.compose.runtime.key(currentImage.id) {
+                        val ext = when (mimeInt) {
+                            42 -> ".mkv"
+                            8 -> ".webm"
+                            4 -> ".mp4"
+                            else -> ".mp4"
                         }
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onDoubleTap = {
-                                    scale.floatValue = if (scale.floatValue > 1f) 1f else 2.5f
-                                    offset.value = Offset.Zero
-                                },
-                                onTap = {
-                                    if (isGif) {
-                                        isPlaying.value = !isPlaying.value
-                                    }
-                                }
-                            )
+
+                        val authenticatedUrl = if (urlToLoad.contains("?")) {
+                            "$urlToLoad&Hydrus-Client-API-Access-Key=$apiKey&ext=$ext"
+                        } else {
+                            "$urlToLoad?Hydrus-Client-API-Access-Key=$apiKey&ext=$ext"
                         }
-                        .graphicsLayer(
-                            scaleX = scale.floatValue,
-                            scaleY = scale.floatValue,
-                            translationX = offset.value.x,
-                            translationY = offset.value.y
-                        ),
-                    onSuccess = { state ->
-                        val drawable = state.result.drawable
-                        if (drawable is Animatable) {
-                            animatable.value = drawable
-                        }
-                    },
-                    loading = {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(
-                                color = Color.White.copy(alpha = 0.5f),
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(36.dp)
-                            )
+
+                        FullScreenVideoPlayer(
+                            url = authenticatedUrl,
+                            apiKey = apiKey,
+                            mime = currentImage.mime,
+                            isActive = true,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .statusBarsPadding()
+                                .padding(bottom = 110.dp),
+                            muteButtonAtTop = true,
+                            showSubtitlesButton = false
+                        )
+                    }
+                } else {
+                    val animatable = remember { androidx.compose.runtime.mutableStateOf<Animatable?>(null) }
+
+                    LaunchedEffect(isPlaying.value, animatable.value) {
+                        animatable.value?.let {
+                            if (isPlaying.value) it.start() else it.stop()
                         }
                     }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // normal image
+                        SubcomposeAsyncImage(
+                            model = coil.request.ImageRequest.Builder(context)
+                                .data(urlToLoad)
+                                .size(coil.size.Size.ORIGINAL)
+                                .setParameter("coil#repeat_count", if (isLooping.value) -1 else 0)
+                                .build(),
+                            contentDescription = "Review",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    detectTransformGestures { _, pan, zoom, _ ->
+                                        scale.floatValue = (scale.floatValue * zoom).coerceIn(1f, 5f)
+                                        offset.value = if (scale.floatValue > 1f) offset.value + pan else Offset.Zero
+                                    }
+                                }
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onDoubleTap = {
+                                            scale.floatValue = if (scale.floatValue > 1f) 1f else 2.5f
+                                            offset.value = Offset.Zero
+                                        },
+                                        onTap = {
+                                            if (isGif) {
+                                                isPlaying.value = !isPlaying.value
+                                            }
+                                        }
+                                    )
+                                }
+                                .graphicsLayer(
+                                    scaleX = scale.floatValue,
+                                    scaleY = scale.floatValue,
+                                    translationX = offset.value.x,
+                                    translationY = offset.value.y
+                                ),
+                            onSuccess = { state ->
+                                val drawable = state.result.drawable
+                                if (drawable is Animatable) {
+                                    animatable.value = drawable
+                                }
+                            },
+                            loading = {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                            }
+                        )
+
+                        // gif play overlay
+                        if (isGif && !isPlaying.value) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.3f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PlayArrow,
+                                    contentDescription = "Play",
+                                    tint = Color.White.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(80.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // layer 2, close button
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .statusBarsPadding()
+                        .padding(8.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                }
+
+                // layer 2.1, remaining files counter
+                val remainingFiles = (uiState.totalFilesCount - uiState.reviewIndex).coerceAtLeast(0)
+                if (uiState.totalFilesCount > 0) {
+                    Text(
+                        text = "Remaining: $remainingFiles",
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .statusBarsPadding()
+                            .padding(top = 16.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+
+                // layer 2.5, file metadata info
+                FileMetadataOverlay(
+                    size = currentImage.size ?: 0L,
+                    width = currentImage.width ?: 0,
+                    height = currentImage.height ?: 0,
+                    duration = currentImage.duration,
+                    framerate = currentImage.framerate,
+                    tagCount = currentImage.tagCount,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(top = if (isVideo || isGif) 56.dp else 8.dp, end = 8.dp)
                 )
 
-                // gif play overlay
-                if (isGif && !isPlaying.value) {
-                    Box(
+                // layer 2.6, GIF controls
+                if (isGif) {
+                    IconButton(
+                        onClick = { isLooping.value = !isLooping.value },
                         modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.3f)),
-                        contentAlignment = Alignment.Center
+                            .align(Alignment.TopEnd)
+                            .statusBarsPadding()
+                            .padding(top = 8.dp, end = 8.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Play",
-                            tint = Color.White.copy(alpha = 0.8f),
-                            modifier = Modifier.size(80.dp)
+                            imageVector = if (isLooping.value) Icons.Default.Repeat else Icons.Default.RepeatOne,
+                            contentDescription = "Loop",
+                            tint = if (isLooping.value) Color.Cyan else Color.White
                         )
                     }
                 }
-            }
-        }
 
-        // layer 2, close button
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .statusBarsPadding()
-                .padding(8.dp)
-                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-        ) {
-            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-        }
+                // layer 3, floating button panel
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
+                            )
+                        )
+                        .navigationBarsPadding()
+                        .padding(top = 48.dp, bottom = 32.dp, start = 16.dp, end = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // undo/goback
+                    FloatingActionButton(onClick = {
+                        if (uiState.reviewIndex > 0) {
+                            val previousImage = pagedImages[uiState.reviewIndex - 1]
+                            if (previousImage != null) {
+                                viewModel.undoReview(previousImage.id)
+                            }
+                        }
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
+                    }
 
-        // layer 2.1, remaining files counter
-        val remainingFiles = (uiState.totalFilesCount - uiState.reviewIndex).coerceAtLeast(0)
-        if (uiState.totalFilesCount > 0) {
-            Text(
-                text = "Remaining: $remainingFiles",
-                color = Color.White,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(top = 16.dp)
-                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            )
-        }
+                    // skip
+                    FloatingActionButton(
+                        onClick = { viewModel.skipReview() },
+                        containerColor = Color.DarkGray,
+                        contentColor = Color.White
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Skip")
+                    }
 
-        // layer 2.5, file metadata info
-        FileMetadataOverlay(
-            size = currentImage.size ?: 0L,
-            width = currentImage.width ?: 0,
-            height = currentImage.height ?: 0,
-            duration = currentImage.duration,
-            framerate = currentImage.framerate,
-            tagCount = currentImage.tagCount,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(top = if (isVideo || isGif) 56.dp else 8.dp, end = 8.dp)
-        )
+                    // archive
+                    FloatingActionButton(
+                        onClick = {
+                            viewModel.skipReview()
+                            viewModel.archiveMultipleFiles(setOf(currentImage.id), skipRefresh = true)
+                        },
+                        containerColor = Color(0xFF4CAF50),
+                        contentColor = Color.White
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = "Archive")
+                    }
 
-        // layer 2.6, GIF controls
-        if (isGif) {
-            IconButton(
-                onClick = { isLooping.value = !isLooping.value },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(top = 8.dp, end = 8.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-            ) {
-                Icon(
-                    imageVector = if (isLooping.value) Icons.Default.Repeat else Icons.Default.RepeatOne,
-                    contentDescription = "Loop",
-                    tint = if (isLooping.value) Color.Cyan else Color.White
-                )
-            }
-        }
-
-        // layer 3, floating button panel
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))
-                    )
-                )
-                .navigationBarsPadding()
-                .padding(top = 48.dp, bottom = 32.dp, start = 16.dp, end = 16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // undo/goback
-            FloatingActionButton(onClick = {
-                if (uiState.reviewIndex > 0) {
-                    val previousImage = pagedImages[uiState.reviewIndex - 1]
-                    if (previousImage != null) {
-                        viewModel.undoReview(previousImage.id)
+                    // trash
+                    FloatingActionButton(
+                        onClick = {
+                            viewModel.skipReview()
+                            viewModel.trashMultipleFiles(setOf(currentImage.id), skipRefresh = true)
+                        },
+                        containerColor = Color(0xFFF44336),
+                        contentColor = Color.White
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = "Trash")
                     }
                 }
-            }) {
-                Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
-            }
-
-            // skip
-            FloatingActionButton(
-                onClick = { viewModel.skipReview() },
-                containerColor = Color.DarkGray,
-                contentColor = Color.White
-            ) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Skip")
-            }
-
-            // archive
-            FloatingActionButton(
-                onClick = {
-                    viewModel.skipReview()
-                    viewModel.archiveMultipleFiles(setOf(currentImage.id), skipRefresh = true)
-                },
-                containerColor = Color(0xFF4CAF50),
-                contentColor = Color.White
-            ) {
-                Icon(Icons.Default.Check, contentDescription = "Archive")
-            }
-
-            // trash
-            FloatingActionButton(
-                onClick = {
-                    viewModel.skipReview()
-                    viewModel.trashMultipleFiles(setOf(currentImage.id), skipRefresh = true)
-                },
-                containerColor = Color(0xFFF44336),
-                contentColor = Color.White
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = "Trash")
             }
         }
     }
