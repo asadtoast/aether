@@ -233,7 +233,7 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("Privacy Keyboard", style = MaterialTheme.typography.bodyLarge)
+            Text("Keyboard Privacy", style = MaterialTheme.typography.bodyLarge)
 
             Switch(
                 checked = isPrivacyKeyboard,
