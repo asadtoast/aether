@@ -44,15 +44,9 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
         val md = MessageDigest.getInstance("MD5")
         val buffer = ByteArray(8192)
         var bytesRead: Int
-        var totalBytesRead = 0L
-        val limit = 10 * 1024 * 1024L // 10 MB
 
         inputStream.use { stream ->
             while (stream.read(buffer).also { bytesRead = it } != -1) {
-                totalBytesRead += bytesRead
-                if (totalBytesRead > limit) {
-                    throw Exception("File exceeds 10MB limit for MD5 calculation.")
-                }
                 md.update(buffer, 0, bytesRead)
             }
         }

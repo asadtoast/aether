@@ -44,6 +44,7 @@ interface HydrusApiService {
         @Query("hashes") hashesJson: String
     ): FileMetadataResponse
 
+    @retrofit2.http.Streaming
     @GET("get_files/file")
     suspend fun getFile(
         @Header("Hydrus-Client-API-Access-Key") apiKey: String,
