@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.asadtoast.aether.data.AddTagsRequest
 import com.asadtoast.aether.data.FileMetadata
 import com.asadtoast.aether.data.HydrusRepository
+import com.asadtoast.aether.data.ScraperSource
 import com.asadtoast.aether.data.SettingsManager
 import com.asadtoast.aether.data.TagSuggestion
 import com.asadtoast.aether.data.TagWikiEntity
@@ -40,7 +41,6 @@ sealed class BooruScrapeState {
     data class Success(val tags: List<com.asadtoast.aether.data.ParsedTag>) : BooruScrapeState()
     data class Error(val message: String) : BooruScrapeState()
 }
-
 data class GalleryUiState(
     val isLoading: Boolean = false,
     val isTrashMode: Boolean = false,
@@ -591,30 +591,30 @@ class HydrusViewModel(
     private val _booruScrapeState = MutableStateFlow<BooruScrapeState>(BooruScrapeState.Idle)
     val booruScrapeState = _booruScrapeState.asStateFlow()
 
-    fun scrapeBooruTags(file: FileMetadata) {
+    fun scrapeBooruTags(file: FileMetadata, source: ScraperSource) {
         viewModelScope.launch {
             _booruScrapeState.value = BooruScrapeState.Loading
 
-            // quick search, check for know URLs for danbooru
-            val danbooruUrl = file.knownUrls.find { it.contains("danbooru.donmai.us/posts/") }
-            if (danbooruUrl != null) {
-                val postId = danbooruUrl.substringAfterLast("/").substringBefore("?")
-                if (postId.isNotEmpty()) {
-                    val result = booruRepository.getTagsForPostId(postId)
-                    if (result.isSuccess) {
-                        val tags = result.getOrNull()!!
-                        if (tags.isEmpty()) {
-                            _booruScrapeState.value = BooruScrapeState.Error("No tags found in Danbooru for this post ID.")
-                        } else {
-                            _booruScrapeState.value = BooruScrapeState.Success(tags)
-                        }
-                    } else {
-                        _booruScrapeState.value = BooruScrapeState.Error(result.exceptionOrNull()?.message ?: "Error querying Danbooru by ID.")
-                    }
+            if (source == ScraperSource.PAWCHIVE) {
+                val hash = file.hash
+                if (hash.isNullOrEmpty()) {
+                    _booruScrapeState.value = BooruScrapeState.Error("SHA256 hash is missing for this file.")
                     return@launch
                 }
-            }
 
+                val result = booruRepository.getTagsForHash(md5 = null, sha256 = hash, source = source)
+                if (result.isSuccess) {
+                    val tags = result.getOrNull()!!
+                    if (tags.isEmpty()) {
+                        _booruScrapeState.value = BooruScrapeState.Error("No tags found in ${source.name} for this file.")
+                    } else {
+                        _booruScrapeState.value = BooruScrapeState.Success(tags)
+                    }
+                } else {
+                    _booruScrapeState.value = BooruScrapeState.Error(result.exceptionOrNull()?.message ?: "Error querying ${source.name}.")
+                }
+                return@launch
+            }
 
             /*
             filesize limit for md5 calculation on the fly
@@ -636,17 +636,17 @@ class HydrusViewModel(
                     return@launch
                 }
 
-                // search on danbooru using md5 hash
-                val booruResult = booruRepository.getTagsForMd5(md5Hash)
+                // search on booru
+                val booruResult = booruRepository.getTagsForHash(md5 = md5Hash, sha256 = null, source = source)
                 if (booruResult.isSuccess) {
                     val tags = booruResult.getOrNull()!!
                     if (tags.isEmpty()) {
-                        _booruScrapeState.value = BooruScrapeState.Error("No tags found in Danbooru for this file.")
+                        _booruScrapeState.value = BooruScrapeState.Error("No tags found in ${source.name} for this file.")
                     } else {
                         _booruScrapeState.value = BooruScrapeState.Success(tags)
                     }
                 } else {
-                    _booruScrapeState.value = BooruScrapeState.Error(booruResult.exceptionOrNull()?.message ?: "Error querying Danbooru.")
+                    _booruScrapeState.value = BooruScrapeState.Error(booruResult.exceptionOrNull()?.message ?: "Error querying ${source.name}.")
                 }
             } else {
                 _booruScrapeState.value = BooruScrapeState.Error(md5Result.exceptionOrNull()?.message ?: "Error downloading file to calculate MD5.")

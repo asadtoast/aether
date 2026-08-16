@@ -423,9 +423,8 @@ fun FullScreenViewer(
                                             SuggestionChip(
                                                 onClick = {
                                                     showBooruDialog = true
-                                                    viewModel.scrapeBooruTags(pageFile)
                                                 },
-                                                label = { Text("Scrape Danbooru", fontWeight = FontWeight.Bold, color = Color(0xFFE0E0E0)) },
+                                                label = { Text("Scrape Tags", fontWeight = FontWeight.Bold, color = Color(0xFFE0E0E0)) },
                                                 colors = SuggestionChipDefaults.suggestionChipColors(containerColor = Color.DarkGray.copy(alpha = 0.5f)),
                                                 border = BorderStroke(1.dp, Color.Gray)
                                             )
@@ -683,7 +682,25 @@ fun FullScreenViewer(
                 title = { Text("Booru Scraper") },
                 text = {
                     when (val state = booruScrapeState) {
-                        is com.asadtoast.aether.viewmodel.BooruScrapeState.Idle -> {}
+                        is com.asadtoast.aether.viewmodel.BooruScrapeState.Idle -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("Select source to scrape:", color = Color.White, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = { viewModel.scrapeBooruTags(currentFile, com.asadtoast.aether.data.ScraperSource.DANBOORU) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0073CC))
+                                ) { Text("Danbooru", color = Color.White) }
+                                Button(
+                                    onClick = { viewModel.scrapeBooruTags(currentFile, com.asadtoast.aether.data.ScraperSource.PAWCHIVE) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
+                                ) { Text("Pawchive", color = Color.White) }
+                            }
+                        }
                         is com.asadtoast.aether.viewmodel.BooruScrapeState.Loading -> {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -691,7 +708,7 @@ fun FullScreenViewer(
                             ) {
                                 CircularProgressIndicator(color = Color.White)
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Text("Searching Danbooru via MD5...")
+                                Text("Searching via MD5...")
                             }
                         }
                         is com.asadtoast.aether.viewmodel.BooruScrapeState.Error -> {
@@ -699,7 +716,7 @@ fun FullScreenViewer(
                         }
                         is com.asadtoast.aether.viewmodel.BooruScrapeState.Success -> {
                             if (state.tags.isEmpty()) {
-                                Text("No tags found for this image on Danbooru.")
+                                Text("No tags found for this image.")
                             } else {
                                 var selectedTags by remember { mutableStateOf(emptySet<com.asadtoast.aether.data.ParsedTag>()) }
                                 val allSelected = selectedTags.size == state.tags.size
