@@ -149,7 +149,8 @@ fun ReviewScreen(
                         .fillMaxSize()
                         .statusBarsPadding()
                         .padding(bottom = 110.dp),
-                    muteButtonAtTop = true
+                    muteButtonAtTop = true,
+                    showSubtitlesButton = false
                 )
             }
         } else {

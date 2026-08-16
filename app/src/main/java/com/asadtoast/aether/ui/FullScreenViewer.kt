@@ -972,6 +972,7 @@ fun FullScreenVideoPlayer(
     modifier: Modifier = Modifier,
     muteButtonAtTop: Boolean = false,
     isUiVisible: Boolean = true,
+    showSubtitlesButton: Boolean = true,
     onControllerVisibilityChanged: (Boolean) -> Unit = {},
     onVideoEnded: () -> Unit = {},
     onCodecInfoExtracted: (String) -> Unit = {},
@@ -1217,15 +1218,17 @@ fun FullScreenVideoPlayer(
                         )
                     }
 
-                    IconButton(
-                        onClick = { showSubtitles = !showSubtitles },
-                        modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Subtitles,
-                            contentDescription = "Toggle Subtitles",
-                            tint = if (showSubtitles) Color.White else Color.Gray
-                        )
+                    if (showSubtitlesButton) {
+                        IconButton(
+                            onClick = { showSubtitles = !showSubtitles },
+                            modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Subtitles,
+                                contentDescription = "Toggle Subtitles",
+                                tint = if (showSubtitles) Color.White else Color.Gray
+                            )
+                        }
                     }
 
                     IconButton(
