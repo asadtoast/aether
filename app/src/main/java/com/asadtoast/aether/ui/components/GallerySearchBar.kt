@@ -28,13 +28,13 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.asadtoast.aether.ui.theme.getNamespaceColor
 import com.asadtoast.aether.viewmodel.GalleryUiState
-import com.asadtoast.aether.viewmodel.HydrusViewModel
+import com.asadtoast.aether.viewmodel.AetherViewModel
 import com.asadtoast.aether.data.SettingsManager
 
 
 @Composable
 fun GallerySearchBar(
-    viewModel: HydrusViewModel,
+    viewModel: AetherViewModel,
     uiState: GalleryUiState,
     focusManager: FocusManager
 ) {

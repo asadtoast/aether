@@ -50,11 +50,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
-import com.asadtoast.aether.viewmodel.HydrusViewModel
+import com.asadtoast.aether.viewmodel.AetherViewModel
 
 @Composable
 fun ReviewScreen(
-    viewModel: HydrusViewModel,
+    viewModel: AetherViewModel,
     pagedImages: androidx.paging.compose.LazyPagingItems<com.asadtoast.aether.data.FileMetadata>,
     onClose: () -> Unit,
 ) {

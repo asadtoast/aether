@@ -56,7 +56,7 @@ data class GalleryUiState(
     val gifAutoLoop: Boolean = true
 )
 
-class HydrusViewModel(
+class AetherViewModel(
     private val wikiRepo: WikiRepository,
     private val settingsManager: SettingsManager,
     private val hydrusRepository: HydrusRepository
@@ -158,6 +158,10 @@ class HydrusViewModel(
 
     fun saveGifAutoLoop(loop: Boolean) {
         viewModelScope.launch { settingsManager.saveGifAutoLoop(loop) }
+    }
+
+    fun updateSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
     }
 
     fun fetchGallery(

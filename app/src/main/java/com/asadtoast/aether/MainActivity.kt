@@ -28,7 +28,7 @@ import com.asadtoast.aether.ui.SettingsScreen
 import com.asadtoast.aether.ui.WikiScreen
 import com.asadtoast.aether.ui.theme.HydrusClientTheme
 import com.asadtoast.aether.ui.TagDetailDialog
-import com.asadtoast.aether.viewmodel.HydrusViewModel
+import com.asadtoast.aether.viewmodel.AetherViewModel
 import com.asadtoast.aether.work.BackupWorker
 import java.util.concurrent.TimeUnit
 import androidx.navigation.compose.NavHost
@@ -79,7 +79,7 @@ class MainActivity : ComponentActivity() {
             // instanced dependencies via koin
             val settingsManager: SettingsManager = org.koin.compose.koinInject()
             val hydrusRepository: com.asadtoast.aether.data.HydrusRepository = org.koin.compose.koinInject()
-            val viewModel: HydrusViewModel = org.koin.androidx.compose.koinViewModel()
+            val viewModel: AetherViewModel = org.koin.androidx.compose.koinViewModel()
             val duplicateViewModel: DuplicateViewModel = org.koin.androidx.compose.koinViewModel()
             val wikiViewModel: WikiViewModel = org.koin.androidx.compose.koinViewModel()
 
@@ -215,14 +215,10 @@ class MainActivity : ComponentActivity() {
                                                 initialIndex = index,
                                                 onClose = { viewModel.selectImage(null) },
                                                 onAddToSearch = { clickedTag ->
-                                                    val currentText = viewModel.uiState.value.searchQuery
-                                                    val separator =
-                                                        if (currentText.isBlank() || currentText.trim()
-                                                                .endsWith(",")
-                                                        ) "" else ", "
-
                                                     // auto assign string,
-                                                    viewModel.fetchGallery("$currentText$separator$clickedTag, ")
+                                                    val currentQuery = viewModel.uiState.value.searchQuery
+                                                    val newQuery = if (currentQuery.isBlank()) clickedTag else "$currentQuery, $clickedTag"
+                                                    viewModel.updateSearchQuery(newQuery)
 
                                                     android.widget.Toast.makeText(
                                                         context,
@@ -333,12 +329,10 @@ class MainActivity : ComponentActivity() {
                                                 overlayStack = overlayStack.dropLast(1)
                                             },
                                             onAddToSearch = { clickedTag ->
-                                                val currentText = viewModel.uiState.value.searchQuery
-                                                val separator =
-                                                    if (currentText.isBlank() || currentText.trim()
-                                                            .endsWith(",")
-                                                    ) "" else ", "
-                                                viewModel.fetchGallery("$currentText$separator$clickedTag, ")
+                                                val currentQuery = viewModel.uiState.value.searchQuery
+                                                val newQuery = if (currentQuery.isBlank()) clickedTag else "$currentQuery, $clickedTag"
+                                                viewModel.updateSearchQuery(newQuery)
+
                                                 android.widget.Toast.makeText(
                                                     context,
                                                     "Tag added to search",

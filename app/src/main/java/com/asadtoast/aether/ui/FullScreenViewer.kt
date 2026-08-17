@@ -63,7 +63,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.MediaItem
 import coil.request.repeatCount
-import com.asadtoast.aether.viewmodel.HydrusViewModel
+import com.asadtoast.aether.viewmodel.AetherViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -75,7 +75,7 @@ import androidx.core.net.toUri
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun FullScreenViewer(
-    viewModel: HydrusViewModel,
+    viewModel: AetherViewModel,
     initialIndex: Int,
     onClose: () -> Unit,
     onAddToSearch: (String) -> Unit,
@@ -1270,7 +1270,7 @@ fun InfoRow(label: String, value: String) {
 @Composable
 fun AdvancedTagsSection(
     tagsText: String,
-    viewModel: HydrusViewModel,
+    viewModel: AetherViewModel,
     isEditMode: Boolean,
     tagsPendingDelete: Set<String>,
     onAddToSearch: (String) -> Unit,

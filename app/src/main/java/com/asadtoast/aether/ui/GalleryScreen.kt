@@ -66,7 +66,7 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.asadtoast.aether.data.FileMetadata
 import com.asadtoast.aether.utils.formatDuration
-import com.asadtoast.aether.viewmodel.HydrusViewModel
+import com.asadtoast.aether.viewmodel.AetherViewModel
 import com.asadtoast.aether.viewmodel.UiEvent
 import kotlinx.coroutines.isActive
 import kotlin.time.Duration.Companion.milliseconds
@@ -75,7 +75,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(ExperimentalFoundationApi::class)
 fun GalleryScreen(
     navController: NavController,
-    viewModel: HydrusViewModel,
+    viewModel: AetherViewModel,
     pagedImages: LazyPagingItems<FileMetadata>,
     gridColumns: Int,
     onOpenSettings: () -> Unit,

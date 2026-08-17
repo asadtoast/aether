@@ -5,7 +5,7 @@ import com.asadtoast.aether.data.HydrusRepository
 import com.asadtoast.aether.data.SettingsManager
 import com.asadtoast.aether.data.WikiRepository
 import com.asadtoast.aether.viewmodel.DuplicateViewModel
-import com.asadtoast.aether.viewmodel.HydrusViewModel
+import com.asadtoast.aether.viewmodel.AetherViewModel
 import com.asadtoast.aether.viewmodel.WikiViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -37,7 +37,7 @@ val appModule = module {
     single { BackupManager(androidContext()) }
 
     // viewmodels
-    viewModel { HydrusViewModel(get(), get(), get()) }
+    viewModel { AetherViewModel(get(), get(), get()) }
     viewModel { DuplicateViewModel(get(), get()) }
     viewModel { WikiViewModel(get(), get(), get(), get()) }
 }

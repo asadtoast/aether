@@ -14,11 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.asadtoast.aether.viewmodel.HydrusViewModel
+import com.asadtoast.aether.viewmodel.AetherViewModel
 
 @Composable
 fun GalleryTopBar(
-    viewModel: HydrusViewModel,
+    viewModel: AetherViewModel,
     uiState: com.asadtoast.aether.viewmodel.GalleryUiState,
     navController: NavController,
     isSelectionMode: Boolean,
