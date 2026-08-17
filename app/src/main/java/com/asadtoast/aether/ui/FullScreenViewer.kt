@@ -66,6 +66,7 @@ import coil.request.repeatCount
 import com.asadtoast.aether.viewmodel.HydrusViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import com.asadtoast.aether.ui.theme.getNamespaceColor
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.core.net.toUri
@@ -215,7 +216,8 @@ fun FullScreenViewer(
         }
     }
 
-    val tagSuggestions by viewModel.tagSuggestions.collectAsState()
+    var tagSuggestions by remember { mutableStateOf<List<com.asadtoast.aether.data.TagSuggestion>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
 
     // fullscreen container with new tag + info view
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -355,12 +357,14 @@ fun FullScreenViewer(
                                             InlineTagInputField(
                                                 suggestions = tagSuggestions,
                                                 onQueryChanged = { query ->
-                                                    viewModel.fetchTagSuggestions(query)
+                                                    coroutineScope.launch {
+                                                        tagSuggestions = viewModel.fetchTagSuggestions(query)
+                                                    }
                                                 },
                                                 onTagSubmitted = { newTag ->
                                                     if (newTag.isNotBlank()) {
                                                         viewModel.addTagsToImage(pageFile.id, newTag)
-                                                        viewModel.fetchTagSuggestions("")
+                                                        tagSuggestions = emptyList()
                                                         viewModel.fetchExistingTagsForImage(pageFile.id)
                                                     }
                                                 }

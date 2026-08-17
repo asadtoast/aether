@@ -162,21 +162,18 @@ fun GalleryScreen(
         val settingsManager = remember { com.asadtoast.aether.data.SettingsManager(context) }
         val isPrivacyKeyboardEnabled by settingsManager.privacyKeyboardFlow.collectAsState(initial = false)
 
-        fun updateAutocomplete(value: androidx.compose.ui.text.input.TextFieldValue) {
-            val text = value.text
-            val cursor = value.selection.start
-            val textBeforeCursor = text.substring(0, cursor)
-            val lastComma = textBeforeCursor.lastIndexOf(',')
-            val currentTerm =
-                if (lastComma == -1) textBeforeCursor else textBeforeCursor.substring(lastComma + 1)
-            val trimmedTerm = currentTerm.trimStart()
+        var dialogTagSuggestions by remember { mutableStateOf(tagSuggestions) }
 
-            if (trimmedTerm.isNotEmpty()) {
-                autocompleteQuery = trimmedTerm
-                cursorPosition = cursor
-                viewModel.fetchTagSuggestions(trimmedTerm)
-            } else {
-                autocompleteQuery = null
+        LaunchedEffect(autocompleteQuery) {
+            autocompleteQuery?.let { query ->
+                if (query.isNotEmpty()) {
+                    kotlinx.coroutines.delay(300) // Debounce para evitar múltiples peticiones
+                    dialogTagSuggestions = viewModel.fetchTagSuggestions(query)
+                } else {
+                    dialogTagSuggestions = emptyList()
+                }
+            } ?: run {
+                dialogTagSuggestions = emptyList()
             }
         }
 
@@ -184,6 +181,8 @@ fun GalleryScreen(
             onDismissRequest = {
                 showTagDialog = false
                 tagsInputState = androidx.compose.ui.text.input.TextFieldValue("")
+                autocompleteQuery = null
+                dialogTagSuggestions = emptyList()
             },
             title = { Text("Edit Tags in Batch") },
             text = {
@@ -198,27 +197,44 @@ fun GalleryScreen(
                             value = tagsInputState,
                             onValueChange = { newValue ->
                                 tagsInputState = newValue
-                                updateAutocomplete(newValue)
+                                val text = newValue.text
+                                val cursor = newValue.selection.start
+                                val textBeforeCursor = text.substring(0, cursor)
+                                val lastComma = textBeforeCursor.lastIndexOf(',')
+                                val currentTerm = if (lastComma == -1) textBeforeCursor else textBeforeCursor.substring(lastComma + 1)
+                                val trimmedTerm = currentTerm.trimStart()
+
+                                if (trimmedTerm.isNotEmpty()) {
+                                    autocompleteQuery = trimmedTerm
+                                    cursorPosition = cursor
+                                } else {
+                                    autocompleteQuery = null
+                                }
                             },
                             label = { Text("Tags (comma separated)") },
                             placeholder = { Text("e.g. tag1, tag2") },
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = if (isPrivacyKeyboardEnabled) {
-                                KeyboardOptions(capitalization = KeyboardCapitalization.Unspecified, autoCorrectEnabled = false, keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, imeAction = ImeAction.Unspecified,platformImeOptions = null, showKeyboardOnFocus = null,hintLocales = null)
+                                KeyboardOptions(
+                                    capitalization = KeyboardCapitalization.Unspecified,
+                                    autoCorrectEnabled = false,
+                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                                    imeAction = ImeAction.Unspecified
+                                )
                             } else {
                                 KeyboardOptions.Default
                             }
                         )
 
                         DropdownMenu(
-                            expanded = autocompleteQuery != null && tagSuggestions.isNotEmpty(),
+                            expanded = autocompleteQuery != null && dialogTagSuggestions.isNotEmpty(),
                             onDismissRequest = { autocompleteQuery = null },
                             modifier = Modifier
                                 .fillMaxWidth(0.8f)
                                 .heightIn(max = 250.dp),
                             properties = PopupProperties(focusable = false)
                         ) {
-                            tagSuggestions.forEach { suggestion ->
+                            dialogTagSuggestions.forEach { suggestion ->
                                 DropdownMenuItem(
                                     text = { Text("${suggestion.value} (${suggestion.count.toInt()})") },
                                     onClick = {
@@ -228,22 +244,15 @@ fun GalleryScreen(
                                         val textAfterCursor = currentText.substring(cursor)
 
                                         val lastCommaIndex = textBeforeCursor.lastIndexOf(',')
-                                        val prefix =
-                                            if (lastCommaIndex == -1) "" else textBeforeCursor.substring(
-                                                0,
-                                                lastCommaIndex + 1
-                                            ) + " "
+                                        val prefix = if (lastCommaIndex == -1) "" else textBeforeCursor.substring(0, lastCommaIndex + 1) + " "
 
                                         val newInsertion = "$prefix${suggestion.value}, "
                                         val newText = newInsertion + textAfterCursor
 
-                                        tagsInputState =
-                                            androidx.compose.ui.text.input.TextFieldValue(
-                                                text = newText,
-                                                selection = androidx.compose.ui.text.TextRange(
-                                                    newInsertion.length
-                                                )
-                                            )
+                                        tagsInputState = androidx.compose.ui.text.input.TextFieldValue(
+                                            text = newText,
+                                            selection = androidx.compose.ui.text.TextRange(newInsertion.length)
+                                        )
                                         autocompleteQuery = null
                                     }
                                 )
@@ -289,6 +298,8 @@ fun GalleryScreen(
                         }
                         showTagDialog = false
                         tagsInputState = androidx.compose.ui.text.input.TextFieldValue("")
+                        autocompleteQuery = null
+                        dialogTagSuggestions = emptyList()
                         isSelectionMode = false
                     }
                 ) {
@@ -299,6 +310,8 @@ fun GalleryScreen(
                 TextButton(onClick = {
                     showTagDialog = false
                     tagsInputState = androidx.compose.ui.text.input.TextFieldValue("")
+                    autocompleteQuery = null
+                    dialogTagSuggestions = emptyList()
                 }) {
                     Text("Cancel")
                 }

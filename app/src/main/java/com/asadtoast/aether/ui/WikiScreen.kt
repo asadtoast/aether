@@ -407,10 +407,10 @@ fun WikiScreen(
     onOpenTagDetail: (TagWikiEntity) -> Unit
 ) {
     // network/database flows
-    val allWikiEntries by wikiViewModel.allWikiEntries.collectAsState(initial = emptyList())
-    val mutedTags by wikiViewModel.mutedTags.collectAsState(initial = emptySet())
-    val tagSuggestions by wikiViewModel.tagSuggestions.collectAsState(initial = emptyList())
-    val latestBackup by wikiViewModel.latestBackup.collectAsState(initial = null)
+    val allWikiEntries by wikiViewModel.allWikiEntries.collectAsState()
+    val mutedTags by wikiViewModel.mutedTags.collectAsState()
+    val tagSuggestions by wikiViewModel.tagSuggestions.collectAsState()
+    val latestBackup by wikiViewModel.latestBackup.collectAsState()
 
     // simple booleans
     val isSyncing = wikiViewModel.isSyncing
@@ -445,7 +445,7 @@ fun WikiScreen(
     // category states
     val namespacesOrder = listOf("creator", "artist", "series", "copyright", "character", "general","system" , "meta")
 
-    val visibleCategories by wikiViewModel.visibleCategories.collectAsState(initial = emptySet())
+    val visibleCategories by wikiViewModel.visibleCategories.collectAsState()
     var showFilterMenu by remember { mutableStateOf(false) }
 
     // filtering
@@ -1069,7 +1069,7 @@ fun TagDetailDialog(
     val uriHandler = LocalUriHandler.current
     val previewFiles by wikiViewModel.exampleImages.collectAsState()
 
-    val allEntries by wikiViewModel.allWikiEntries.collectAsState(initial = emptyList())
+    val allEntries by wikiViewModel.allWikiEntries.collectAsState()
     val currentEntry = allEntries.find { it.tagName == entryDetail.tagName } ?: entryDetail
 
     LaunchedEffect(currentEntry.tagName) {

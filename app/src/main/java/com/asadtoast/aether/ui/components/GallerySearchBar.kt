@@ -42,7 +42,8 @@ fun GallerySearchBar(
     val settingsManager = remember { SettingsManager(context) }
     val isPrivacyKeyboardEnabled by settingsManager.privacyKeyboardFlow.collectAsState(initial = true)
 
-    val tagSuggestions by viewModel.tagSuggestions.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
+    var tagSuggestions by remember { mutableStateOf(emptyList<com.asadtoast.aether.data.TagSuggestion>()) }
     val keyboardController = LocalSoftwareKeyboardController.current
 
     var searchTextFieldValue by remember {
@@ -61,6 +62,13 @@ fun GallerySearchBar(
     // state to manage the visibility of tag suggestions
     var showSuggestions by remember { mutableStateOf(searchTextFieldValue.text.isNotEmpty()) }
 
+    LaunchedEffect(searchTextFieldValue.text) {
+        val trimmedText = searchTextFieldValue.text.trim()
+        if (trimmedText.isNotEmpty() && !trimmedText.trimEnd().endsWith(",")) {
+            tagSuggestions = viewModel.fetchTagSuggestions(searchTextFieldValue.text)
+        }
+    }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         key(isPrivacyKeyboardEnabled) {
             OutlinedTextField(
@@ -71,7 +79,6 @@ fun GallerySearchBar(
                     // fetch tag suggestions if text contains a non-comma character or is not ending with ","
                     val trimmedText = newTextFieldValue.text.trim()
                     if (trimmedText.isNotEmpty() && !trimmedText.trimEnd().endsWith(",")) {
-                        viewModel.fetchTagSuggestions(newTextFieldValue.text)
                         showSuggestions = true
                     } else {
                         showSuggestions = false
@@ -92,7 +99,7 @@ fun GallerySearchBar(
                 keyboardActions = KeyboardActions(
                     onSearch = {
                         showSuggestions = false
-                        viewModel.fetchTagSuggestions("")
+                        tagSuggestions = emptyList()
                         viewModel.fetchGallery(searchTextFieldValue.text)
                         keyboardController?.hide()
                         focusManager.clearFocus()
@@ -107,7 +114,7 @@ fun GallerySearchBar(
                             IconButton(
                                 onClick = {
                                     searchTextFieldValue = TextFieldValue(text = "")
-                                    viewModel.fetchTagSuggestions("")
+                                    tagSuggestions = emptyList()
                                     viewModel.fetchGallery("")
                                 }
                             ) {
@@ -117,7 +124,7 @@ fun GallerySearchBar(
                         IconButton(
                             onClick = {
                                 showSuggestions = false
-                                viewModel.fetchTagSuggestions("")
+                                tagSuggestions = emptyList()
                                 viewModel.fetchGallery(searchTextFieldValue.text)
                                 keyboardController?.hide()
                                 focusManager.clearFocus()
@@ -152,7 +159,7 @@ fun GallerySearchBar(
 
                                     val newText = "$prefix$cleanTag, "
                                     searchTextFieldValue = TextFieldValue(text = newText, selection = TextRange(newText.length))
-                                    viewModel.fetchTagSuggestions("")
+                                    tagSuggestions = emptyList()
                                     showSuggestions = false
                                 }
                                 .padding(16.dp),

@@ -380,55 +380,49 @@ class HydrusViewModel(
     val tagSuggestions = _tagSuggestions.asStateFlow()
 
     // smart tag suggestion function
-    fun fetchTagSuggestions(query: String) {
+    suspend fun fetchTagSuggestions(query: String): List<TagSuggestion> {
         if (query.isBlank()) {
-            _tagSuggestions.value = emptyList()
-            return
+            return emptyList()
         }
 
-        viewModelScope.launch {
-            // search matches for local alias
-            val currentWord = query.substringAfterLast(",").trim()
-            if (currentWord.isEmpty()) {
-                _tagSuggestions.value = emptyList()
-                return@launch
-            }
-            val localEntries = wikiRepo.allWikiEntries.value
+        // search matches for local alias
+        val currentWord = query.substringAfterLast(",").trim()
+        if (currentWord.isEmpty()) {
+            return emptyList()
+        }
+        val localEntries = wikiRepo.allWikiEntries.value
 
-            val localMatches = localEntries.filter { entry ->
-                entry.aliases.any { it.contains(currentWord, ignoreCase = true) }
-            }.take(10)
+        val localMatches = localEntries.filter { entry ->
+            entry.aliases.any { it.contains(currentWord, ignoreCase = true) }
+        }.take(10)
 
-            val localSuggestions = localMatches.map { wikiEntry ->
-                val matchedAlias = wikiEntry.aliases.firstOrNull {
-                    it.contains(currentWord, ignoreCase = true)
-                } ?: wikiEntry.aliases.firstOrNull() ?: "Aliases"
+        val localSuggestions = localMatches.map { wikiEntry ->
+            val matchedAlias = wikiEntry.aliases.firstOrNull {
+                it.contains(currentWord, ignoreCase = true)
+            } ?: wikiEntry.aliases.firstOrNull() ?: "Aliases"
 
-                TagSuggestion(
-                    value = "$matchedAlias ➔ ${wikiEntry.tagName}",
-                    count = wikiEntry.count.toFloat()
-                )
-            }
+            TagSuggestion(
+                value = "$matchedAlias ➔ ${wikiEntry.tagName}",
+                count = wikiEntry.count.toFloat()
+            )
+        }
 
-            // remote search and merge
-            val result = hydrusRepository.searchTags(currentWord)
-            if (result.isSuccess) {
-                val response = result.getOrNull()
-                val apiSuggestions = response?.tags ?: emptyList()
+        // remote search and merge
+        val result = hydrusRepository.searchTags(currentWord)
+        return if (result.isSuccess) {
+            val response = result.getOrNull()
+            val apiSuggestions = response?.tags ?: emptyList()
 
-                // update local database count in background
-                wikiRepo.updateExistingTagCounts(apiSuggestions)
+            // update local database count in background
+            wikiRepo.updateExistingTagCounts(apiSuggestions)
 
-                // combine server and local, then delete dupes
-                val combined = (apiSuggestions + localSuggestions).distinctBy {
-                    if (it.value.contains("➔")) it.value.substringAfter("➔").trim() else it.value
-                }.sortedByDescending { it.count }
-
-                _tagSuggestions.value = combined
-            } else {
-                // if no network, show local (check if still useful)
-                _tagSuggestions.value = localSuggestions
-            }
+            // combine server and local, then delete dupes
+            (apiSuggestions + localSuggestions).distinctBy {
+                if (it.value.contains("➔")) it.value.substringAfter("➔").trim() else it.value
+            }.sortedByDescending { it.count }
+        } else {
+            // if no network, show local (check if still useful)
+            localSuggestions
         }
     }
 
