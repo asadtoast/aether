@@ -704,6 +704,9 @@ fun FullScreenViewer(
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0073CC))
                                 ) { Text("Danbooru", color = Color.White) }
+
+                                // removed until fixed by pawchive
+                                /*
                                 Button(
                                     onClick = {
                                         selectedSource = com.asadtoast.aether.data.ScraperSource.PAWCHIVE
@@ -712,6 +715,7 @@ fun FullScreenViewer(
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
                                 ) { Text("Pawchive", color = Color.White) }
+                                */
                             }
                         }
                         is com.asadtoast.aether.viewmodel.BooruScrapeState.Loading -> {

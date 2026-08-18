@@ -1,7 +1,7 @@
 package com.asadtoast.aether.network
 
 import com.asadtoast.aether.data.DanbooruPost
-import com.asadtoast.aether.data.PawchivePost
+import com.asadtoast.aether.data.PawchiveHashSearchResponse
 import retrofit2.http.GET
 
 interface BooruApiService {
@@ -13,5 +13,5 @@ interface BooruApiService {
     @GET
     suspend fun getPawchivePostByHash(
         @retrofit2.http.Url url: String
-    ): List<PawchivePost>
+    ): PawchiveHashSearchResponse
 }

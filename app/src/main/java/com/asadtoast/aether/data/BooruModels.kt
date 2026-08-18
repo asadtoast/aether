@@ -18,9 +18,15 @@ data class DanbooruPost(
 )
 
 @JsonClass(generateAdapter = true)
+data class PawchiveHashSearchResponse(
+    val posts: List<PawchivePost>?
+)
+
+@JsonClass(generateAdapter = true)
 data class PawchivePost(
     val user: String?,
-    val service: String?
+    val service: String?,
+    val title: String?
 )
 
 enum class ScraperSource {
