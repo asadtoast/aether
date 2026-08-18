@@ -167,7 +167,7 @@ fun GalleryScreen(
         LaunchedEffect(autocompleteQuery) {
             autocompleteQuery?.let { query ->
                 if (query.isNotEmpty()) {
-                    kotlinx.coroutines.delay(300) // Debounce para evitar múltiples peticiones
+                    kotlinx.coroutines.delay(300.milliseconds) // debounce
                     dialogTagSuggestions = viewModel.fetchTagSuggestions(query)
                 } else {
                     dialogTagSuggestions = emptyList()

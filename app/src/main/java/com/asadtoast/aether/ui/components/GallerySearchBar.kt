@@ -42,7 +42,6 @@ fun GallerySearchBar(
     val settingsManager = remember { SettingsManager(context) }
     val isPrivacyKeyboardEnabled by settingsManager.privacyKeyboardFlow.collectAsState(initial = true)
 
-    val coroutineScope = rememberCoroutineScope()
     var tagSuggestions by remember { mutableStateOf(emptyList<com.asadtoast.aether.data.TagSuggestion>()) }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -78,11 +77,7 @@ fun GallerySearchBar(
 
                     // fetch tag suggestions if text contains a non-comma character or is not ending with ","
                     val trimmedText = newTextFieldValue.text.trim()
-                    if (trimmedText.isNotEmpty() && !trimmedText.trimEnd().endsWith(",")) {
-                        showSuggestions = true
-                    } else {
-                        showSuggestions = false
-                    }
+                    showSuggestions = trimmedText.isNotEmpty() && !trimmedText.trimEnd().endsWith(",")
                 },
                 modifier = Modifier
                     .fillMaxWidth()

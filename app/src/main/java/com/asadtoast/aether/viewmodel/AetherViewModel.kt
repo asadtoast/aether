@@ -144,18 +144,6 @@ class AetherViewModel(
 
 
     // datastore
-    fun saveHidePdf(hide: Boolean) {
-        viewModelScope.launch { settingsManager.saveHidePdf(hide) }
-    }
-
-    fun saveHidePsd(hide: Boolean) {
-        viewModelScope.launch { settingsManager.saveHidePsd(hide) }
-    }
-
-    fun saveHideZip(hide: Boolean) {
-        viewModelScope.launch { settingsManager.saveHideZip(hide) }
-    }
-
     fun saveGifAutoLoop(loop: Boolean) {
         viewModelScope.launch { settingsManager.saveGifAutoLoop(loop) }
     }

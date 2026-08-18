@@ -675,9 +675,12 @@ fun FullScreenViewer(
 
         // booru scrape dialog
         if (showBooruDialog && currentFile != null) {
+            var selectedSource by remember { mutableStateOf<com.asadtoast.aether.data.ScraperSource?>(null) }
+
             AlertDialog(
                 onDismissRequest = {
                     showBooruDialog = false
+                    selectedSource = null
                     viewModel.resetBooruState()
                 },
                 containerColor = Color(0xFF1A1A1A),
@@ -694,12 +697,18 @@ fun FullScreenViewer(
                                 Text("Select source to scrape:", color = Color.White, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Button(
-                                    onClick = { viewModel.scrapeBooruTags(currentFile, com.asadtoast.aether.data.ScraperSource.DANBOORU) },
+                                    onClick = {
+                                        selectedSource = com.asadtoast.aether.data.ScraperSource.DANBOORU
+                                        viewModel.scrapeBooruTags(currentFile, com.asadtoast.aether.data.ScraperSource.DANBOORU)
+                                    },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0073CC))
                                 ) { Text("Danbooru", color = Color.White) }
                                 Button(
-                                    onClick = { viewModel.scrapeBooruTags(currentFile, com.asadtoast.aether.data.ScraperSource.PAWCHIVE) },
+                                    onClick = {
+                                        selectedSource = com.asadtoast.aether.data.ScraperSource.PAWCHIVE
+                                        viewModel.scrapeBooruTags(currentFile, com.asadtoast.aether.data.ScraperSource.PAWCHIVE)
+                                    },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0))
                                 ) { Text("Pawchive", color = Color.White) }
@@ -712,7 +721,12 @@ fun FullScreenViewer(
                             ) {
                                 CircularProgressIndicator(color = Color.White)
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Text("Searching via MD5...")
+                                val loadingText = if (selectedSource == com.asadtoast.aether.data.ScraperSource.PAWCHIVE) {
+                                    "Searching via SHA256..."
+                                } else {
+                                    "Searching via MD5..."
+                                }
+                                Text(loadingText)
                             }
                         }
                         is com.asadtoast.aether.viewmodel.BooruScrapeState.Error -> {
@@ -789,6 +803,7 @@ fun FullScreenViewer(
                                             }
                                             viewModel.fetchExistingTagsForImage(currentFile.id)
                                             showBooruDialog = false
+                                            selectedSource = null
                                             viewModel.resetBooruState()
                                         },
                                         modifier = Modifier.fillMaxWidth(),
@@ -805,6 +820,7 @@ fun FullScreenViewer(
                     if (booruScrapeState !is com.asadtoast.aether.viewmodel.BooruScrapeState.Success || (booruScrapeState as? com.asadtoast.aether.viewmodel.BooruScrapeState.Success)?.tags?.isEmpty() == true) {
                         TextButton(onClick = {
                             showBooruDialog = false
+                            selectedSource = null
                             viewModel.resetBooruState()
                         }) { Text("Close", color = Color.White) }
                     }
