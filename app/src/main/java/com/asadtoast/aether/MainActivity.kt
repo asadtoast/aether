@@ -80,7 +80,6 @@ class MainActivity : ComponentActivity() {
             val settingsManager: SettingsManager = org.koin.compose.koinInject()
             val hydrusRepository: com.asadtoast.aether.data.HydrusRepository = org.koin.compose.koinInject()
             val viewModel: AetherViewModel = org.koin.androidx.compose.koinViewModel()
-            val duplicateViewModel: DuplicateViewModel = org.koin.androidx.compose.koinViewModel()
             val wikiViewModel: WikiViewModel = org.koin.androidx.compose.koinViewModel()
 
             // DataStore async status retrieval
@@ -256,8 +255,18 @@ class MainActivity : ComponentActivity() {
 
                                 // route: duplicate processing
                                 composable("duplicate_processing") {
+                                    val duplicateViewModel: DuplicateViewModel = org.koin.androidx.compose.koinViewModel()
                                     DuplicateProcessingScreen(
                                         viewModel = duplicateViewModel,
+                                        onNavigateBack = { navController.popBackStack() }
+                                    )
+                                }
+
+                                // route: group duplicate processing
+                                composable("group_duplicate_processing") {
+                                    val groupDuplicateViewModel: com.asadtoast.aether.viewmodel.GroupDuplicateViewModel = org.koin.androidx.compose.koinViewModel()
+                                    com.asadtoast.aether.ui.GroupDuplicateProcessingScreen(
+                                        viewModel = groupDuplicateViewModel,
                                         onNavigateBack = { navController.popBackStack() }
                                     )
                                 }

@@ -5,6 +5,7 @@ import com.asadtoast.aether.data.HydrusRepository
 import com.asadtoast.aether.data.SettingsManager
 import com.asadtoast.aether.data.WikiRepository
 import com.asadtoast.aether.viewmodel.DuplicateViewModel
+import com.asadtoast.aether.viewmodel.GroupDuplicateViewModel
 import com.asadtoast.aether.viewmodel.AetherViewModel
 import com.asadtoast.aether.viewmodel.WikiViewModel
 import kotlinx.coroutines.flow.first
@@ -39,5 +40,6 @@ val appModule = module {
     // viewmodels
     viewModel { AetherViewModel(get(), get(), get()) }
     viewModel { DuplicateViewModel(get(), get()) }
+    viewModel { GroupDuplicateViewModel(get(), get()) }
     viewModel { WikiViewModel(get(), get(), get(), get()) }
 }

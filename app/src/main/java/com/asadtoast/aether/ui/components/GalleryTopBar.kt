@@ -205,6 +205,14 @@ fun GalleryTopBar(
                             },
                             leadingIcon = { Icon(Icons.Default.FilterNone, contentDescription = null) }
                         )
+                        DropdownMenuItem(
+                            text = { Text("Group duplicate processing") },
+                            onClick = {
+                                showMenu = false
+                                navController.navigate("group_duplicate_processing")
+                            },
+                            leadingIcon = { Icon(Icons.Default.Collections, contentDescription = null) }
+                        )
                     }
                 }
 
