@@ -86,7 +86,7 @@ class GroupDuplicateViewModel(
                         }
 
                         // only if more than 2 present
-                        if (group.size > 1) {
+                        if (group.size > 2) {
                             computedGroups.add(group)
                         }
                     }
