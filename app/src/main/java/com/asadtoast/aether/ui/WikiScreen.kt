@@ -30,7 +30,7 @@ import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Restore
@@ -122,8 +123,8 @@ fun FullScreenEditDialog(
     var showDeleteConfirm by remember(initialTag) { mutableStateOf(false) }
     var currentTagName by remember(initialTag) { mutableStateOf(initialTag) }
 
-    val uriHandler = LocalUriHandler.current
     val context = LocalContext.current
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     val settingsManager = remember { com.asadtoast.aether.data.SettingsManager(context) }
     val isPrivacyKeyboardEnabled by settingsManager.privacyKeyboardFlow.collectAsState(initial = true)
 
@@ -336,8 +337,12 @@ fun FullScreenEditDialog(
                                         imeAction = ImeAction.Done
                                     ),
                                     trailingIcon = {
-                                        IconButton(onClick = { try { uriHandler.openUri(ref.url) } catch(_: Exception) {} }) {
-                                            Icon(Icons.AutoMirrored.Filled.OpenInNew, "Open")
+                                        IconButton(onClick = {
+                                            clipboardManager.getText()?.text?.let { pastedText ->
+                                                references[index] = ref.copy(url = pastedText.replace("\n", ""))
+                                            }
+                                        }) {
+                                            Icon(Icons.Default.ContentPaste, "Paste")
                                         }
                                     }
                                 )
@@ -1315,13 +1320,22 @@ fun TagDetailDialog(
                             ref.siteName
                         }
 
-                        // clickable text
-                        Text(
-                            text = displayText,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            textDecoration = TextDecoration.Underline,
+                        val domain = try {
+                            java.net.URI(ref.url).host ?: ""
+                        } catch (_: Exception) {
+                            ""
+                        }
+
+                        val faviconUrl = if (domain.isNotEmpty()) {
+                            "https://s2.googleusercontent.com/s2/favicons?domain=$domain&sz=64"
+                        } else {
+                            ""
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     if (ref.url.isNotBlank()) {
@@ -1331,7 +1345,49 @@ fun TagDetailDialog(
                                         }
                                     }
                                 }
-                        )
+                        ) {
+                            if (faviconUrl.isNotEmpty()) {
+                                SubcomposeAsyncImage(
+                                    model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                        .data(faviconUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = ref.siteName,
+                                    modifier = Modifier.size(20.dp).clip(RoundedCornerShape(4.dp)),
+                                    loading = {
+                                        Icon(
+                                            imageVector = Icons.Default.Link,
+                                            contentDescription = ref.siteName,
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    error = {
+                                        Icon(
+                                            imageVector = Icons.Default.Link,
+                                            contentDescription = ref.siteName,
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Link,
+                                    contentDescription = ref.siteName,
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            // clickable text
+                            Text(
+                                text = displayText,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                textDecoration = TextDecoration.Underline
+                            )
+                        }
                     }
                 } else {
                     Text(
