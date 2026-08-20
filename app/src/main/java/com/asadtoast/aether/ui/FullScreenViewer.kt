@@ -88,7 +88,7 @@ fun FullScreenViewer(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currentAlternates by viewModel.currentAlternates.collectAsState()
-    val context = LocalContext.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val settingsManager = remember { com.asadtoast.aether.data.SettingsManager(context) }
     val apiKey by settingsManager.apiKeyFlow.collectAsState(initial = "")
 

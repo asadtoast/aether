@@ -14,7 +14,7 @@ android {
     defaultConfig {
         applicationId = "com.com.asadtoast.com.asadtoast.aether"
         minSdk = 24
-        targetSdk = 37
+        targetSdk = 36
         versionCode = 1
         versionName = "2.0"
 
