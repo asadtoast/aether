@@ -25,8 +25,6 @@ retrofit = "3.0.0"
 ui = "1.12.0"
 glance = "1.1.1"
 foundation = "1.12.0"
-ksp = "2.0.20-1.0.25"
-hilt = "2.60.1"
 workRuntimeKtx = "2.11.2"
 
 [libraries]
