@@ -125,6 +125,10 @@ class AetherViewModel(
     val currentImageTags = _currentImageTags.asStateFlow()
     private val _currentMimeType = MutableStateFlow("")
 
+    // state for alternate files
+    private val _currentAlternates = MutableStateFlow<List<String>>(emptyList())
+    val currentAlternates = _currentAlternates.asStateFlow()
+
     // state to define if metadata is being loaded
     private val _isLoadingMetadata = MutableStateFlow(false)
 
@@ -642,5 +646,66 @@ class AetherViewModel(
 
     fun resetBooruState() {
         _booruScrapeState.value = BooruScrapeState.Idle
+    }
+
+    // fetch metadata for alternate files using their hashes
+    suspend fun fetchAlternatesMetadata(hashes: List<String>): List<FileMetadata> {
+        return try {
+            val result = hydrusRepository.getFileMetadataByHashes(hashes)
+            val metadataList = result.getOrNull()?.metadata ?: return emptyList()
+
+            metadataList.map { metadata ->
+                FileMetadata(
+                    id = metadata.file_id,
+                    hash = metadata.hash,
+                    size = metadata.size,
+                    mime = metadata.mime,
+                    width = metadata.width?.toInt(),
+                    height = metadata.height?.toInt(),
+                    thumbnailUrl = hydrusRepository.getFileUrl(metadata.file_id, isThumbnail = true),
+                    fileUrl = hydrusRepository.getFileUrl(metadata.file_id, isThumbnail = false)
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    fun loadAlternates(hash: String) {
+        viewModelScope.launch {
+            try {
+                val result = hydrusRepository.getFileRelationships(hash)
+
+                if (result.isSuccess) {
+                    val response = result.getOrNull()
+
+                    val alternatesList = mutableListOf<String>()
+
+                    val responseMap = response?.file_relationships
+                    val hashData = responseMap?.get(hash) as? Map<*, *>
+
+                    hashData?.forEach { (key, value) ->
+                        // verify key number
+                        if (key.toString().toIntOrNull() != null && value is List<*>) {
+                            value.forEach { hashItem ->
+                                val hashString = hashItem.toString()
+                                // thing to not include original hash and duplicate stuff
+                                if (hashString != hash && !alternatesList.contains(hashString)) {
+                                    alternatesList.add(hashString)
+                                }
+                            }
+                        }
+                    }
+
+                    _currentAlternates.value = alternatesList
+                } else {
+                    val exception = result.exceptionOrNull()
+                    _currentAlternates.value = emptyList()
+                }
+            } catch (e: Exception) {
+                _currentAlternates.value = emptyList()
+            }
+        }
     }
 }

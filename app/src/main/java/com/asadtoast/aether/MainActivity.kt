@@ -40,11 +40,13 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import android.os.Build
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.rememberCoroutineScope
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import com.asadtoast.aether.ui.DuplicateProcessingScreen
 import com.asadtoast.aether.viewmodel.DuplicateViewModel
 import com.asadtoast.aether.viewmodel.WikiViewModel
+import kotlinx.coroutines.launch
 
 val LocalApiKey = androidx.compose.runtime.compositionLocalOf<String> { error("API Key not initialized") }
 
@@ -150,6 +152,7 @@ class MainActivity : ComponentActivity() {
                         color = MaterialTheme.colorScheme.background
                     ) {
                         var overlayStack by remember { mutableStateOf(listOf<AppOverlay>()) }
+                        val coroutineScope = rememberCoroutineScope()
                         val mutedTags by wikiViewModel.mutedTags.collectAsState(initial = emptySet())
 
                         BackHandler(enabled = overlayStack.isNotEmpty()) {
@@ -233,6 +236,20 @@ class MainActivity : ComponentActivity() {
                                                         overlayStack + AppOverlay.TagDetails(
                                                             entity
                                                         )
+                                                },
+                                                onAlternateClick = { hash ->
+                                                    coroutineScope.launch {
+                                                        val allHashes = viewModel.currentAlternates.value
+                                                        if (allHashes.isNotEmpty()) {
+                                                            val alternatesMetadata = viewModel.fetchAlternatesMetadata(allHashes)
+                                                            val targetIndex = alternatesMetadata.indexOfFirst { it.hash == hash }.coerceAtLeast(0)
+                                                            if (alternatesMetadata.isNotEmpty()) {
+                                                                overlayStack = overlayStack + AppOverlay.CustomImageViewer(alternatesMetadata, targetIndex)
+                                                            } else {
+                                                                android.widget.Toast.makeText(context, "Failed to load alternates", android.widget.Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             )
                                         }
@@ -355,6 +372,20 @@ class MainActivity : ComponentActivity() {
                                                     overlayStack + AppOverlay.TagDetails(
                                                         entity
                                                     )
+                                            },
+                                            onAlternateClick = { hash ->
+                                                coroutineScope.launch {
+                                                    val allHashes = viewModel.currentAlternates.value
+                                                    if (allHashes.isNotEmpty()) {
+                                                        val alternatesMetadata = viewModel.fetchAlternatesMetadata(allHashes)
+                                                        val targetIndex = alternatesMetadata.indexOfFirst { it.hash == hash }.coerceAtLeast(0)
+                                                        if (alternatesMetadata.isNotEmpty()) {
+                                                            overlayStack = overlayStack + AppOverlay.CustomImageViewer(alternatesMetadata, targetIndex)
+                                                        } else {
+                                                            android.widget.Toast.makeText(context, "Failed to load alternates", android.widget.Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                }
                                             }
                                         )
                                     }

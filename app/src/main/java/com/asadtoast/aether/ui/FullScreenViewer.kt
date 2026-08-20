@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -40,6 +41,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -80,10 +82,12 @@ fun FullScreenViewer(
     onClose: () -> Unit,
     onAddToSearch: (String) -> Unit,
     onNavigateToTagWiki: (String) -> Unit,
+    onAlternateClick: (String) -> Unit = {},
     customImageList: List<com.asadtoast.aether.data.FileMetadata>? = null,
     pagedImages: androidx.paging.compose.LazyPagingItems<com.asadtoast.aether.data.FileMetadata>? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val currentAlternates by viewModel.currentAlternates.collectAsState()
     val context = LocalContext.current
     val settingsManager = remember { com.asadtoast.aether.data.SettingsManager(context) }
     val apiKey by settingsManager.apiKeyFlow.collectAsState(initial = "")
@@ -211,6 +215,10 @@ fun FullScreenViewer(
     LaunchedEffect(settledFileId) {
         if (settledFileId != null) {
             viewModel.fetchExistingTagsForImage(settledFileId)
+            val settledFile = getFileAtIndex(pagerState.settledPage)
+            if (settledFile?.hash != null) {
+                viewModel.loadAlternates(settledFile.hash)
+            }
             isEditMode = false
             tagsPendingDelete = emptySet()
         }
@@ -348,6 +356,44 @@ fun FullScreenViewer(
                                         .padding(16.dp)
                                         .navigationBarsPadding()
                                 ) {
+                                    // alternates carousel
+                                    if (currentAlternates.isNotEmpty()) {
+                                        Text("Alternates (${currentAlternates.size})", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        androidx.compose.foundation.lazy.LazyRow(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            items(currentAlternates) { altHash ->
+                                                val isSelected = altHash == pageFile.hash
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(96.dp)
+                                                        .clickable {
+                                                            onAlternateClick(altHash)
+                                                        }
+                                                        .border(
+                                                            width = if (isSelected) 2.dp else 0.dp,
+                                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                                            shape = RoundedCornerShape(8.dp)
+                                                        )
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                ) {
+                                                    val thumbUrl = pageFile.thumbnailUrl?.replace(pageFile.hash ?: "", altHash)
+                                                    coil.compose.AsyncImage(
+                                                        model = thumbUrl,
+                                                        contentDescription = "Alternate",
+                                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        HorizontalDivider(modifier = Modifier.padding(vertical = 24.dp), color = Color.DarkGray)
+                                    }
+
+                                    Text("Tags", color = Color.White, style = MaterialTheme.typography.titleMedium)
+
                                     // tag searchbar with edit button
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,

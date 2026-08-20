@@ -18,7 +18,8 @@ data class FileMetadata(
     val width: Int? = null,
     val height: Int? = null,
     val tags: List<String> = emptyList(),
-    val knownUrls: List<String> = emptyList()
+    val knownUrls: List<String> = emptyList(),
+    val alternates: List<String>? = null
 ) {
     val tagCount: Int
         get() = tags.count { !it.startsWith("system:", ignoreCase = true) }

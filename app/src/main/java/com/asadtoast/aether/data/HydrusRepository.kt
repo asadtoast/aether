@@ -104,19 +104,14 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
     }
 
     // group alternate processing
-    suspend fun getPotentialDuplicateGroups(maxHammingDistance: Int? = null) = safeApiCall {
-        val response = getApi().getPotentialDuplicateGroups(getApiKey(), maxHammingDistance = maxHammingDistance)
-        if (response.isSuccessful) response.body() else throw Exception("Duplicate groups fetch failed: ${response.code()}")
-    }
-
-    suspend fun getPotentialDuplicateGroupsCount(maxHammingDistance: Int? = null) = safeApiCall {
-        val response = getApi().getPotentialDuplicateGroupsCount(getApiKey(), maxHammingDistance = maxHammingDistance)
-        if (response.isSuccessful) response.body() else throw Exception("Duplicate groups count fetch failed: ${response.code()}")
-    }
-
     suspend fun setFileRelationships(request: SetFileRelationshipsRequest) = safeApiCall {
         val response = getApi().setFileRelationships(getApiKey(), request)
         if (!response.isSuccessful) throw Exception("Relationship set failed: ${response.code()}")
+    }
+
+    suspend fun getFileRelationships(hash: String) = safeApiCall {
+        val response = getApi().getFileRelationships(getApiKey(), hash)
+        if (response.isSuccessful) response.body() else throw Exception("Get relationships failed: ${response.code()}")
     }
 
     // file actions (single and batch)

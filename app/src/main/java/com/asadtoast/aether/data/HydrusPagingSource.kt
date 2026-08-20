@@ -43,7 +43,8 @@ class HydrusPagingSource(
                     hash = detail.hash,
                     is_inbox = detail.is_inbox,
                     is_trashed = detail.is_trashed,
-                    knownUrls = detail.known_urls ?: emptyList()
+                    knownUrls = detail.known_urls ?: emptyList(),
+                    alternates = detail.alternates
                 )
             }
 

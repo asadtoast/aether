@@ -41,6 +41,7 @@ data class HydrusFileMetadata(
     val num_frames: Int? = null,
     val hash: String? = null,
     val known_urls: List<String>? = null,
+    val alternates: List<String>? = null,
 
     val is_inbox: Boolean? = false,
     val is_trashed: Boolean? = false

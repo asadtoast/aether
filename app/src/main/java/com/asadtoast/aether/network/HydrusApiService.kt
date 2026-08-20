@@ -131,4 +131,13 @@ interface HydrusApiService {
         @Header("Hydrus-Client-API-Access-Key") apiKey: String,
         @Body request: SetFileRelationshipsRequest
     ): Response<Unit>
+    @GET("manage_file_relationships/get_file_relationships")
+    suspend fun getFileRelationships(
+        @Header("Hydrus-Client-API-Access-Key") apiKey: String,
+        @Query("hash") hash: String
+    ): Response<FileRelationshipsResponse>
 }
+
+data class FileRelationshipsResponse(
+    val file_relationships: Map<String, Any>
+)
