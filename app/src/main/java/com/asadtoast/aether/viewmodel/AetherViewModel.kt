@@ -700,10 +700,9 @@ class AetherViewModel(
 
                     _currentAlternates.value = alternatesList
                 } else {
-                    val exception = result.exceptionOrNull()
                     _currentAlternates.value = emptyList()
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _currentAlternates.value = emptyList()
             }
         }

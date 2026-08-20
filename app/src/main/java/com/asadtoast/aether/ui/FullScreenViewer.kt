@@ -379,7 +379,8 @@ fun FullScreenViewer(
                                                         )
                                                         .clip(RoundedCornerShape(8.dp))
                                                 ) {
-                                                    val thumbUrl = pageFile.thumbnailUrl?.replace(pageFile.hash ?: "", altHash)
+                                                    val thumbUrl = pageFile.thumbnailUrl
+                                                        .replace(pageFile.hash ?: "", altHash)
                                                     coil.compose.AsyncImage(
                                                         model = thumbUrl,
                                                         contentDescription = "Alternate",
