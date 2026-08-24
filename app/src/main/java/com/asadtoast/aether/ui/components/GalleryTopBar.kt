@@ -52,6 +52,10 @@ fun GalleryTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                IconButton(onClick = onEditTags) {
+                    Icon(Icons.AutoMirrored.Filled.Label, contentDescription = "Edit Tags", tint = MaterialTheme.colorScheme.primary)
+                }
+
                 IconButton(
                     onClick = {
                         viewModel.linkMultipleFiles(selectedFiles)
@@ -66,29 +70,56 @@ fun GalleryTopBar(
                     )
                 }
 
-                IconButton(onClick = onEditTags) {
-                    Icon(Icons.AutoMirrored.Filled.Label, contentDescription = "Edit Tags", tint = MaterialTheme.colorScheme.primary)
+                if (!uiState.isTrashMode) {
+                    IconButton(onClick = {
+                        viewModel.trashMultipleFiles(selectedFiles)
+                        onSelectionModeChange(false)
+                    }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Trash", tint = Color.Red)
+                    }
                 }
 
-                IconButton(onClick = {
-                    viewModel.inboxMultipleFiles(selectedFiles)
-                    onSelectionModeChange(false)
-                }) {
-                    Icon(Icons.Default.MoveToInbox, contentDescription = "To Inbox", tint = Color(0xFF64B5F6))
-                }
+                var showSelectionMenu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { showSelectionMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                    }
+                    DropdownMenu(
+                        expanded = showSelectionMenu,
+                        onDismissRequest = { showSelectionMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Archive") },
+                            onClick = {
+                                showSelectionMenu = false
+                                viewModel.archiveMultipleFiles(selectedFiles)
+                                onSelectionModeChange(false)
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color.Green
+                                )
+                            }
+                        )
 
-                IconButton(onClick = {
-                    viewModel.archiveMultipleFiles(selectedFiles)
-                    onSelectionModeChange(false)
-                }) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = "Archive", tint = Color.Green)
-                }
-
-                IconButton(onClick = {
-                    viewModel.trashMultipleFiles(selectedFiles)
-                    onSelectionModeChange(false)
-                }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Trash", tint = Color.Red)
+                        DropdownMenuItem(
+                            text = { Text("To Inbox") },
+                            onClick = {
+                                showSelectionMenu = false
+                                viewModel.inboxMultipleFiles(selectedFiles)
+                                onSelectionModeChange(false)
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.MoveToInbox,
+                                    contentDescription = null,
+                                    tint = Color(0xFF64B5F6)
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
