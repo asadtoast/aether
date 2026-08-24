@@ -480,30 +480,71 @@ fun FullScreenViewer(
                                                 border = BorderStroke(1.dp, Color.Gray)
                                             )
 
-                                            if (pageFile.is_trashed == true) {
-                                                SuggestionChip(
-                                                    onClick = { },
-                                                    label = { Text("Trash", fontWeight = FontWeight.Bold, color = Color.Red) },
-                                                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = Color.Red.copy(alpha = 0.15f)),
-                                                    border = BorderStroke(1.dp, Color.Red)
-                                                )
-                                            } else if (pageFile.is_inbox == true) {
-                                                SuggestionChip(
-                                                    onClick = { },
-                                                    label = { Text("Inbox", fontWeight = FontWeight.Bold, color = Color(0xFF64B5F6)) },
-                                                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = Color(0xFF64B5F6).copy(alpha = 0.15f)),
-                                                    border = BorderStroke(1.dp, Color(0xFF64B5F6))
-                                                )
-                                            } else {
-                                                SuggestionChip(
-                                                    onClick = { },
-                                                    label = { Text("Archived", fontWeight = FontWeight.Bold, color = Color.Green) },
-                                                    colors = SuggestionChipDefaults.suggestionChipColors(containerColor = Color.Green.copy(alpha = 0.15f)),
-                                                    border = BorderStroke(1.dp, Color.Green)
-                                                )
+                                            Box {
+                                                var statusMenuExpanded by remember { mutableStateOf(false) }
+                                                var localIsTrashed by remember(pageFile.id) { mutableStateOf(pageFile.is_trashed == true) }
+                                                var localIsInbox by remember(pageFile.id) { mutableStateOf(pageFile.is_inbox == true) }
+
+                                                if (localIsTrashed) {
+                                                    SuggestionChip(
+                                                        onClick = { statusMenuExpanded = true },
+                                                        label = { Text("Trash", fontWeight = FontWeight.Bold, color = Color.Red) },
+                                                        colors = SuggestionChipDefaults.suggestionChipColors(containerColor = Color.Red.copy(alpha = 0.15f)),
+                                                        border = BorderStroke(1.dp, Color.Red)
+                                                    )
+                                                } else if (localIsInbox) {
+                                                    SuggestionChip(
+                                                        onClick = { statusMenuExpanded = true },
+                                                        label = { Text("Inbox", fontWeight = FontWeight.Bold, color = Color(0xFF64B5F6)) },
+                                                        colors = SuggestionChipDefaults.suggestionChipColors(containerColor = Color(0xFF64B5F6).copy(alpha = 0.15f)),
+                                                        border = BorderStroke(1.dp, Color(0xFF64B5F6))
+                                                    )
+                                                } else {
+                                                    SuggestionChip(
+                                                        onClick = { statusMenuExpanded = true },
+                                                        label = { Text("Archived", fontWeight = FontWeight.Bold, color = Color.Green) },
+                                                        colors = SuggestionChipDefaults.suggestionChipColors(containerColor = Color.Green.copy(alpha = 0.15f)),
+                                                        border = BorderStroke(1.dp, Color.Green)
+                                                    )
+                                                }
+
+                                                DropdownMenu(
+                                                    expanded = statusMenuExpanded,
+                                                    onDismissRequest = { statusMenuExpanded = false },
+                                                    modifier = Modifier.background(Color(0xFF1E1E1E))
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("Inbox", color = Color(0xFF64B5F6)) },
+                                                        onClick = {
+                                                            statusMenuExpanded = false
+                                                            localIsInbox = true
+                                                            localIsTrashed = false
+                                                            viewModel.inboxFile(pageFile.id, onClose)
+                                                        }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text("Archive", color = Color.Green) },
+                                                        onClick = {
+                                                            statusMenuExpanded = false
+                                                            localIsInbox = false
+                                                            localIsTrashed = false
+                                                            viewModel.archiveFile(pageFile.id, onClose)
+                                                        }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text("Trash", color = Color.Red) },
+                                                        onClick = {
+                                                            statusMenuExpanded = false
+                                                            localIsTrashed = true
+                                                            localIsInbox = false
+                                                            viewModel.trashSpecificFile(pageFile.id, onClose)
+                                                        }
+                                                    )
+                                                }
                                             }
                                         }
                                     }
+
                                     // file id
                                     InfoRow(label = "File ID:", value = pageFile.id.toString())
                                     // file format

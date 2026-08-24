@@ -328,12 +328,50 @@ class AetherViewModel(
         viewModelScope.launch {
             val result = hydrusRepository.trashFile(fileId = fileId)
             if (result.isSuccess) {
-                currentActiveIds.remove(fileId)
-                hasModifications = true
-                if (_uiState.value.totalFilesCount <= 1) onEmptyList()
-                if (!_uiState.value.isReviewMode) {
-                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                    currentPagingSource?.invalidate()
+                if (_uiState.value.isTrashMode) {
+                    currentActiveIds.remove(fileId)
+                    hasModifications = true
+                    if (_uiState.value.totalFilesCount <= 1) onEmptyList()
+                    if (!_uiState.value.isReviewMode) {
+                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                        currentPagingSource?.invalidate()
+                    }
+                }
+            }
+        }
+    }
+
+    // archive specific file and update
+    fun archiveFile(fileId: Long, onEmptyList: () -> Unit) {
+        viewModelScope.launch {
+            val result = hydrusRepository.archiveFile(fileId = fileId)
+            if (result.isSuccess) {
+                if (_uiState.value.isTrashMode) {
+                    currentActiveIds.remove(fileId)
+                    hasModifications = true
+                    if (_uiState.value.totalFilesCount <= 1) onEmptyList()
+                    if (!_uiState.value.isReviewMode) {
+                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                        currentPagingSource?.invalidate()
+                    }
+                }
+            }
+        }
+    }
+
+    // inbox specific file and update
+    fun inboxFile(fileId: Long, onEmptyList: () -> Unit) {
+        viewModelScope.launch {
+            val result = hydrusRepository.unarchiveFile(fileId = fileId)
+            if (result.isSuccess) {
+                if (_uiState.value.isTrashMode) {
+                    currentActiveIds.remove(fileId)
+                    hasModifications = true
+                    if (_uiState.value.totalFilesCount <= 1) onEmptyList()
+                    if (!_uiState.value.isReviewMode) {
+                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                        currentPagingSource?.invalidate()
+                    }
                 }
             }
         }
@@ -350,12 +388,14 @@ class AetherViewModel(
         viewModelScope.launch {
             val result = hydrusRepository.restoreFile(fileId = fileId)
             if (result.isSuccess) {
-                currentActiveIds.remove(fileId)
-                hasModifications = true
-                if (_uiState.value.totalFilesCount <= 1) onEmptyList()
-                if (!_uiState.value.isReviewMode) {
-                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                    currentPagingSource?.invalidate()
+                if (_uiState.value.isTrashMode) {
+                    currentActiveIds.remove(fileId)
+                    hasModifications = true
+                    if (_uiState.value.totalFilesCount <= 1) onEmptyList()
+                    if (!_uiState.value.isReviewMode) {
+                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                        currentPagingSource?.invalidate()
+                    }
                 }
             }
         }
@@ -461,15 +501,17 @@ class AetherViewModel(
                     }.awaitAll()
 
                     withContext(Dispatchers.Main) {
-                        currentActiveIds.removeAll(batch)
-                        hasModifications = true
+                        if (_uiState.value.isTrashMode) {
+                            currentActiveIds.removeAll(batch)
+                            hasModifications = true
+                        }
                         _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
                     }
                 }
             }
 
             _uiState.update { it.copy(isProcessingBatch = false) }
-            if (!skipRefresh) {
+            if (!skipRefresh && _uiState.value.isTrashMode) {
                 _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
                 currentPagingSource?.invalidate()
             }
@@ -491,15 +533,17 @@ class AetherViewModel(
                         }
                     }.awaitAll()
                     withContext(Dispatchers.Main) {
-                        currentActiveIds.removeAll(batch)
-                        hasModifications = true
+                        if (_uiState.value.isTrashMode) {
+                            currentActiveIds.removeAll(batch)
+                            hasModifications = true
+                        }
                         _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
                     }
                 }
             }
 
             _uiState.update { it.copy(isProcessingBatch = false) }
-            if (!skipRefresh) {
+            if (!skipRefresh && _uiState.value.isTrashMode) {
                 _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
                 currentPagingSource?.invalidate()
             }
@@ -521,15 +565,17 @@ class AetherViewModel(
                         }
                     }.awaitAll()
                     withContext(Dispatchers.Main) {
-                        currentActiveIds.removeAll(batch)
-                        hasModifications = true
+                        if (_uiState.value.isTrashMode) {
+                            currentActiveIds.removeAll(batch)
+                            hasModifications = true
+                        }
                         _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
                     }
                 }
             }
 
             _uiState.update { it.copy(isProcessingBatch = false) }
-            if (!skipRefresh) {
+            if (!skipRefresh && _uiState.value.isTrashMode) {
                 _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
                 currentPagingSource?.invalidate()
             }
