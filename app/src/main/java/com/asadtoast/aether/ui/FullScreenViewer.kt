@@ -203,9 +203,9 @@ fun FullScreenViewer(
             }
 
             if (pagerState.currentPage < pagerState.pageCount - 1) {
-                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                pagerState.scrollToPage(pagerState.currentPage + 1)
             } else {
-                if (loopSlideshow) pagerState.animateScrollToPage(0) else isSlideshowActive = false
+                if (loopSlideshow) pagerState.scrollToPage(0) else isSlideshowActive = false
             }
         }
     }
