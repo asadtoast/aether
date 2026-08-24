@@ -289,6 +289,7 @@ fun FullScreenViewer(
                                         mime = pageFile.mime,
                                         isActive = isCurrentPage,
                                         apiKey = apiKey,
+                                        autoLoop = uiState.gifAutoLoop,
                                         isUiVisible = isUiVisible,
                                         onControllerVisibilityChanged = { isVisible ->
                                             isUiVisible = isVisible
@@ -676,7 +677,16 @@ fun FullScreenViewer(
                     Surface(shape = RoundedCornerShape(24.dp), color = Color.Black.copy(alpha = 0.4f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             // autoloop button
-                            if (currentFile.mime == "image/gif") {
+                            val mimeStr = currentFile.mime.lowercase()
+                            val mimeInt = mimeStr.toIntOrNull() ?: -1
+                            val isVideoOrGif = mimeStr == "image/gif" || mimeInt == 1 ||
+                                    mimeInt in listOf(2, 3, 4, 8, 42) ||
+                                    mimeStr.startsWith("video/") ||
+                                    mimeStr.contains("webm") ||
+                                    mimeStr.contains("matroska") ||
+                                    mimeStr.contains("mkv")
+
+                            if (isVideoOrGif) {
                                 IconButton(
                                     onClick = { viewModel.saveGifAutoLoop(!uiState.gifAutoLoop) }
                                 ) {
@@ -1082,6 +1092,7 @@ fun FullScreenVideoPlayer(
     isActive: Boolean,
     apiKey: String,
     modifier: Modifier = Modifier,
+    autoLoop: Boolean = false,
     muteButtonAtTop: Boolean = false,
     isUiVisible: Boolean = true,
     showSubtitlesButton: Boolean = true,
@@ -1212,14 +1223,12 @@ fun FullScreenVideoPlayer(
             exoPlayer.seekTo(pos)
         }
 
-        // autoloop for webm
-        if (mimeStr.contains("webm") || mimeInt == 8) {
-            exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
-        } else {
-            exoPlayer.repeatMode = Player.REPEAT_MODE_OFF
-        }
-
         exoPlayer.prepare()
+    }
+
+    // dynamic autoloop control
+    LaunchedEffect(autoLoop) {
+        exoPlayer.repeatMode = if (autoLoop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
 
     // smart playback controls (play, muted and subtitles)
