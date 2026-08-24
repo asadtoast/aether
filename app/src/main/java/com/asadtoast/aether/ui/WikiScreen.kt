@@ -254,7 +254,7 @@ fun FullScreenEditDialog(
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             trailingIcon = {
-                                IconButton(onClick = { aliases.removeAt(index) }) { Icon(Icons.Default.Delete, "Delete") }
+                                IconButton(onClick = { aliases.removeAt(index) }) { Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFD32F2F)) }
                             },
                             keyboardOptions = KeyboardOptions(
                                 capitalization = KeyboardCapitalization.Unspecified,
@@ -348,7 +348,7 @@ fun FullScreenEditDialog(
                                 )
                             }
                             IconButton(onClick = { references.removeAt(index) }, modifier = Modifier.align(Alignment.End)) {
-                                Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
+                                Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFD32F2F))
                             }
                         }
                     }
