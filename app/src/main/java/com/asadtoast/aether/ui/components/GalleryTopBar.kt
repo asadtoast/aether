@@ -52,6 +52,20 @@ fun GalleryTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                IconButton(
+                    onClick = {
+                        viewModel.linkMultipleFiles(selectedFiles)
+                        onSelectionModeChange(false)
+                    },
+                    enabled = selectedFiles.size > 1
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Link,
+                        contentDescription = "Link Files",
+                        tint = if (selectedFiles.size > 1) MaterialTheme.colorScheme.primary else Color.Gray
+                    )
+                }
+
                 IconButton(onClick = onEditTags) {
                     Icon(Icons.AutoMirrored.Filled.Label, contentDescription = "Edit Tags", tint = MaterialTheme.colorScheme.primary)
                 }

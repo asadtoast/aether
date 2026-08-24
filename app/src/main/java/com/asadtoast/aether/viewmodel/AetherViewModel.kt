@@ -574,6 +574,58 @@ class AetherViewModel(
         }
     }
 
+    fun linkMultipleFiles(fileIds: Set<Long>, skipRefresh: Boolean = false) {
+        if (fileIds.size < 2) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isProcessingBatch = true, batchTotal = fileIds.size - 1, batchProgress = 0) }
+
+            // fetch metadata to get the hashes required by the relationship API
+            val metadataResult = hydrusRepository.getFileMetadata(fileIds.toList())
+
+            if (metadataResult.isSuccess) {
+                val metadataList = metadataResult.getOrNull()?.metadata ?: emptyList()
+                val hashes = metadataList.mapNotNull { it.hash }.filter { it.isNotEmpty() }
+
+                if (hashes.size >= 2) {
+                    val hashA = hashes.first()
+                    val remainingHashes = hashes.drop(1)
+
+                    withContext(Dispatchers.IO) {
+                        // relationship 0 = alternates
+                        val relationshipsList = remainingHashes.map { hashB ->
+                            com.asadtoast.aether.data.FileRelationship(
+                                hash_a = hashA,
+                                hash_b = hashB,
+                                relationship = 0
+                            )
+                        }
+
+                        val request = com.asadtoast.aether.data.SetFileRelationshipsRequest(
+                            relationships = relationshipsList
+                        )
+
+                        hydrusRepository.setFileRelationships(request)
+
+                        withContext(Dispatchers.Main) {
+                            _uiState.update { it.copy(batchProgress = remainingHashes.size) }
+                        }
+                    }
+                    _uiEvents.emit(UiEvent.ShowToast("Files grouped as alternates successfully"))
+                } else {
+                    _uiEvents.emit(UiEvent.ShowToast("Could not retrieve enough hashes to group files"))
+                }
+            } else {
+                _uiEvents.emit(UiEvent.ShowToast("Error retrieving file metadata"))
+            }
+
+            _uiState.update { it.copy(isProcessingBatch = false) }
+            if (!skipRefresh) {
+                currentPagingSource?.invalidate()
+            }
+        }
+    }
+
 
     // booru scraper state and repository
     private val booruRepository = com.asadtoast.aether.data.BooruRepository()
