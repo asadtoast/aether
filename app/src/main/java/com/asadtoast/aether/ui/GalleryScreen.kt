@@ -116,6 +116,12 @@ fun GalleryScreen(
         }
     }
 
+    LaunchedEffect(uiState.isReviewMode, pagedImages.itemCount) {
+        if (uiState.isReviewMode && pagedImages.itemCount == 0) {
+            viewModel.setReviewMode(false)
+            android.widget.Toast.makeText(context, "Search something first", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // search only if no loaded images
     LaunchedEffect(Unit) {
