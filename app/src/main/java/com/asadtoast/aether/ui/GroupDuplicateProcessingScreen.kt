@@ -9,7 +9,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -30,9 +29,9 @@ fun GroupDuplicateProcessingScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager(context) }
-    val serverIp = settingsManager.serverIpFlow.collectAsState(initial = "").value ?: ""
-    val port = settingsManager.serverPortFlow.collectAsState(initial = "45869").value ?: "45869"
-    val apiKey = settingsManager.apiKeyFlow.collectAsState(initial = "").value ?: ""
+    val serverIp = settingsManager.serverIpFlow.collectAsState(initial = "").value
+    val port = settingsManager.serverPortFlow.collectAsState(initial = "45869").value
+    val apiKey = settingsManager.apiKeyFlow.collectAsState(initial = "").value
 
     DisposableEffect(Unit) {
         val window = (context as? android.app.Activity)?.window

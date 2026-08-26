@@ -226,7 +226,6 @@ class AetherViewModel(
                         _searchTrigger.value += 1
                     }
                 } else {
-                    val e = searchResponse.exceptionOrNull()
                     _uiState.update { it.copy(isLoading = false) }
                 }
 
