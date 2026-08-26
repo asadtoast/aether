@@ -241,6 +241,19 @@ fun GroupDuplicateProcessingScreen(
                         Button(
                             onClick = {
                                 isProcessing = true
+                                viewModel.setAsAlternates()
+                            },
+                            enabled = !isProcessing,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF388E3C)),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) {
+                            Text("Alternates", color = Color.White, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        }
+
+                        Button(
+                            onClick = {
+                                isProcessing = true
                                 viewModel.skipGroup()
                             },
                             enabled = !isProcessing,

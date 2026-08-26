@@ -34,6 +34,7 @@ class GroupDuplicateViewModel(
 
     private var allGroups: List<List<String>> = emptyList()
     private var currentIndex = 0
+    private val seenGroups = mutableSetOf<Set<String>>()
 
     init {
         loadGroups()
@@ -87,16 +88,20 @@ class GroupDuplicateViewModel(
 
                         // only if more than 2 present
                         if (group.size > 2) {
-                            computedGroups.add(group)
+                            val groupSet = group.toSet()
+                            if (!seenGroups.contains(groupSet)) {
+                                computedGroups.add(group)
+                                seenGroups.add(groupSet)
+                            }
                         }
                     }
                 }
 
                 allGroups = computedGroups
-                android.util.Log.d("GroupDuplicateVM", "Clustering finished. Total groups: ${allGroups.size}")
+                android.util.Log.d("GroupDuplicateVM", "Clustering finished. Total new groups: ${allGroups.size}")
 
                 if (allGroups.isEmpty()) {
-                    android.util.Log.d("GroupDuplicateVM", "Groups list is empty. Setting state to Empty.")
+                    android.util.Log.d("GroupDuplicateVM", "No new groups found. Setting state to Empty.")
                     _uiState.value = GroupDuplicateUiState.Empty
                 } else {
                     android.util.Log.d("GroupDuplicateVM", "Groups found. Loading metadata for index 0.")
@@ -109,9 +114,10 @@ class GroupDuplicateViewModel(
             }
         }
     }
+
     private suspend fun loadCurrentGroupMetadata() {
         if (currentIndex >= allGroups.size) {
-            _uiState.value = GroupDuplicateUiState.Empty
+            loadGroups()
             return
         }
 
@@ -174,6 +180,32 @@ class GroupDuplicateViewModel(
                 nextGroup()
             } catch (e: Exception) {
                 _uiState.value = GroupDuplicateUiState.Error(e.message ?: "Error while establishing false positive")
+            }
+        }
+    }
+
+    fun setAsAlternates() {
+        viewModelScope.launch {
+            try {
+                val currentHashes = allGroups[currentIndex]
+                val relationships = mutableListOf<FileRelationship>()
+
+                for (i in currentHashes.indices) {
+                    for (j in i + 1 until currentHashes.size) {
+                        relationships.add(
+                            FileRelationship(
+                                hash_a = currentHashes[i],
+                                hash_b = currentHashes[j],
+                                relationship = 2 // 2 = Alternates (Same quality)
+                            )
+                        )
+                    }
+                }
+
+                repository.setFileRelationships(SetFileRelationshipsRequest(relationships))
+                nextGroup()
+            } catch (e: Exception) {
+                _uiState.value = GroupDuplicateUiState.Error(e.message ?: "Error while establishing alternates")
             }
         }
     }
