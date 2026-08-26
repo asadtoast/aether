@@ -45,14 +45,12 @@ class GroupDuplicateViewModel(
             _uiState.value = GroupDuplicateUiState.Loading
             try {
                 val distance = settingsManager.maxHammingDistanceFlow.first()
-                android.util.Log.d("GroupDuplicateVM", "Fetching pairs for clustering with maxHammingDistance: $distance")
 
                 val response = repository.getPotentialPairs(
                     maxHammingDistance = distance
                 ).getOrNull()
 
                 val pairs = response?.potential_duplicate_pairs ?: emptyList()
-                android.util.Log.d("GroupDuplicateVM", "Pairs received: ${pairs.size}. Starting clustering...")
 
                 // clustering algorithm
                 val adjList = mutableMapOf<String, MutableSet<String>>()
@@ -98,18 +96,14 @@ class GroupDuplicateViewModel(
                 }
 
                 allGroups = computedGroups
-                android.util.Log.d("GroupDuplicateVM", "Clustering finished. Total new groups: ${allGroups.size}")
 
                 if (allGroups.isEmpty()) {
-                    android.util.Log.d("GroupDuplicateVM", "No new groups found. Setting state to Empty.")
                     _uiState.value = GroupDuplicateUiState.Empty
                 } else {
-                    android.util.Log.d("GroupDuplicateVM", "Groups found. Loading metadata for index 0.")
                     currentIndex = 0
                     loadCurrentGroupMetadata()
                 }
             } catch (e: Exception) {
-                android.util.Log.e("GroupDuplicateVM", "Error loading duplicate groups", e)
                 _uiState.value = GroupDuplicateUiState.Error(e.message ?: "Error loading duplicate groups")
             }
         }
@@ -170,7 +164,7 @@ class GroupDuplicateViewModel(
                             FileRelationship(
                                 hash_a = currentHashes[i],
                                 hash_b = currentHashes[j],
-                                relationship = 1 // 1 = False positive
+                                relationship = 1 // 1 = false positive
                             )
                         )
                     }
@@ -196,7 +190,7 @@ class GroupDuplicateViewModel(
                             FileRelationship(
                                 hash_a = currentHashes[i],
                                 hash_b = currentHashes[j],
-                                relationship = 2 // 2 = Alternates (Same quality)
+                                relationship = 2 // 2 = alternates
                             )
                         )
                     }

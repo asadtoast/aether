@@ -640,7 +640,7 @@ fun FullScreenViewer(
                     }
                 }
             } else {
-                // Placeholder while Paging3 loads the item
+                // placeholder while Paging3 loads the item
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = Color.White)
                 }

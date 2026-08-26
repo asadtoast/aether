@@ -228,13 +228,11 @@ class AetherViewModel(
                 } else {
                     val e = searchResponse.exceptionOrNull()
                     _uiState.update { it.copy(isLoading = false) }
-                    android.util.Log.e("FETCH_GALLERY", "Error loading files: ${e?.message}")
                 }
 
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false) }
                 e.printStackTrace()
-                android.util.Log.e("FETCH_GALLERY", "Error loading files: ${e.message}")
             }
         }
     }
@@ -256,8 +254,6 @@ class AetherViewModel(
             val result = hydrusRepository.addTags(request)
             if (result.isSuccess) {
                 fetchExistingTagsForImage(fileId)
-            } else {
-                android.util.Log.e("HydrusDebug", "Error while adding: ${result.exceptionOrNull()?.message}")
             }
         }
     }
@@ -273,8 +269,6 @@ class AetherViewModel(
             val result = hydrusRepository.addTags(request)
             if (result.isSuccess) {
                 fetchExistingTagsForImage(fileId)
-            } else {
-                android.util.Log.e("HydrusDebug", "Error while removing: ${result.exceptionOrNull()?.message}")
             }
         }
     }
@@ -612,7 +606,6 @@ class AetherViewModel(
                 currentPagingSource?.invalidate()
                 _uiEvents.emit(UiEvent.ShowToast("Tags updated successfully"))
             } else {
-                android.util.Log.e("HydrusDebug", "Error when modifying tags in lot: ${result.exceptionOrNull()?.message}")
                 _uiEvents.emit(UiEvent.ShowToast("Error while updating tag"))
             }
 

@@ -30,13 +30,3 @@ data class DuplicatePair(
 data class PotentialsCountResponse(
     val potential_duplicates_count: Int
 )
-
-// group alternates processing
-data class PotentialGroupsResponse(
-    val potential_duplicate_groups: List<List<String>>
-)
-
-data class DuplicateGroup(
-    val hashes: List<String>,
-    val metadata: List<FileMetadata>
-)

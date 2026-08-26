@@ -1,6 +1,5 @@
 package com.asadtoast.aether.data
 
-import android.util.Log
 import com.asadtoast.aether.network.HydrusNetwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -58,12 +57,10 @@ class BooruRepository {
     private suspend fun fetchPawchiveTags(sha256: String): Result<List<ParsedTag>> {
         return try {
             val url = "https://pawchive.pw/api/v1/search_hash/$sha256"
-            Log.d("BooruRepository", "Fetching Pawchive tags from: $url")
 
             val response = api.getPawchivePostByHash(url)
             val post = response.posts?.firstOrNull()
                 ?: run {
-                    Log.d("BooruRepository", "Pawchive response successful but no posts found for hash: $sha256")
                     return Result.failure(Exception("Could not find a match on Pawchive"))
                 }
 
@@ -72,14 +69,12 @@ class BooruRepository {
 
             Result.success(parsedTags)
         } catch (e: retrofit2.HttpException) {
-            Log.e("BooruRepository", "HTTP Error fetching Pawchive tags: ${e.code()} - ${e.message()}", e)
             if (e.code() == 404) {
                 Result.failure(Exception("Could not find a match on Pawchive"))
             } else {
                 Result.failure(e)
             }
         } catch (e: Exception) {
-            Log.e("BooruRepository", "Error fetching Pawchive tags", e)
             Result.failure(e)
         }
     }
