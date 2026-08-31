@@ -28,6 +28,68 @@ fun GalleryTopBar(
     onOpenSettings: () -> Unit,
     onEditTags: () -> Unit
 ) {
+    var showUploadDialog by remember { mutableStateOf(false) }
+    var selectedUris by remember { mutableStateOf<List<android.net.Uri>>(emptyList()) }
+    var deleteAfterUpload by remember { mutableStateOf(false) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val filePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            selectedUris = uris
+        }
+    }
+
+    if (showUploadDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showUploadDialog = false
+                selectedUris = emptyList()
+            },
+            title = { Text("Upload Files") },
+            text = {
+                Column {
+                    Button(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
+                        Text("Select Files")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("${selectedUris.size} files selected")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = deleteAfterUpload,
+                            onCheckedChange = { deleteAfterUpload = it }
+                        )
+                        Text("Delete original files after upload")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (selectedUris.isNotEmpty()) {
+                            viewModel.uploadFiles(context, selectedUris, deleteAfterUpload)
+                        }
+                        showUploadDialog = false
+                        selectedUris = emptyList()
+                    },
+                    enabled = selectedUris.isNotEmpty()
+                ) {
+                    Text("Upload")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showUploadDialog = false
+                    selectedUris = emptyList()
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (isSelectionMode) {
         Row(
             modifier = Modifier
@@ -259,6 +321,10 @@ fun GalleryTopBar(
                             leadingIcon = { Icon(Icons.Default.Collections, contentDescription = null) }
                         )
                     }
+                }
+
+                IconButton(onClick = { showUploadDialog = true }) {
+                    Icon(Icons.Default.Upload, contentDescription = "Upload files")
                 }
 
                 IconButton(onClick = onOpenSettings) {

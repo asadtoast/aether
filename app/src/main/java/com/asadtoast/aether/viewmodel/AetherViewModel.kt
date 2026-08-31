@@ -1,5 +1,7 @@
 package com.asadtoast.aether.viewmodel
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.asadtoast.aether.data.AddTagsRequest
@@ -30,6 +32,10 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.filter
 import com.asadtoast.aether.data.HydrusPagingSource
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody
+import okio.BufferedSink
+import okio.source
 
 sealed class UiEvent {
     data class ShowToast(val message: String) : UiEvent()
@@ -51,9 +57,14 @@ data class GalleryUiState(
     val isReviewMode: Boolean = false,
     val reviewIndex: Int = 0,
     val isProcessingBatch: Boolean = false,
+    val batchOperationMessage: String = "",
     val batchProgress: Int = 0,
     val batchTotal: Int = 0,
-    val gifAutoLoop: Boolean = true
+    val gifAutoLoop: Boolean = true,
+    val showUploadResults: Boolean = false,
+    val uploadSuccessCount: Int = 0,
+    val uploadDuplicateCount: Int = 0,
+    val uploadErrorCount: Int = 0
 )
 
 class AetherViewModel(
@@ -484,7 +495,7 @@ class AetherViewModel(
         if (fileIds.isEmpty()) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isProcessingBatch = true, batchTotal = fileIds.size, batchProgress = 0) }
+            _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = fileIds.size, batchProgress = 0) }
 
             // background work
             withContext(Dispatchers.IO) {
@@ -515,7 +526,7 @@ class AetherViewModel(
         if (fileIds.isEmpty()) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isProcessingBatch = true, batchTotal = fileIds.size, batchProgress = 0) }
+            _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = fileIds.size, batchProgress = 0) }
 
             withContext(Dispatchers.IO) {
                 fileIds.chunked(50).forEach { batch ->
@@ -547,7 +558,7 @@ class AetherViewModel(
         if (fileIds.isEmpty()) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isProcessingBatch = true, batchTotal = fileIds.size, batchProgress = 0) }
+            _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = fileIds.size, batchProgress = 0) }
 
             withContext(Dispatchers.IO) {
                 fileIds.chunked(50).forEach { batch ->
@@ -587,7 +598,7 @@ class AetherViewModel(
             val tagsList = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
             if (tagsList.isEmpty()) return@launch
 
-            _uiState.update { it.copy(isProcessingBatch = true, batchTotal = 1, batchProgress = 0) }
+            _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = 1, batchProgress = 0) }
 
             val actionMap = if (isDelete) {
                 mapOf(targetService to mapOf("1" to tagsList))
@@ -616,7 +627,7 @@ class AetherViewModel(
         if (fileIds.size < 2) return
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isProcessingBatch = true, batchTotal = fileIds.size - 1, batchProgress = 0) }
+            _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = fileIds.size - 1, batchProgress = 0) }
 
             // fetch metadata to get the hashes required by the relationship API
             val metadataResult = hydrusRepository.getFileMetadata(fileIds.toList())
@@ -796,5 +807,86 @@ class AetherViewModel(
                 _currentAlternates.value = emptyList()
             }
         }
+    }
+
+    // function to upload files via streaming to avoid OOM on large files
+    fun uploadFiles(context: Context, uris: List<Uri>, deleteAfterUpload: Boolean = false) {
+        if (uris.isEmpty()) return
+
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Uploading", batchTotal = uris.size, batchProgress = 0) }
+                _uiEvents.emit(UiEvent.ShowToast("Uploading ${uris.size} file(s)..."))
+
+                var successCount = 0
+                var presentCount = 0
+                var failedCount = 0
+                val contentResolver = context.contentResolver
+
+                for (uri in uris) {
+                    val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+
+                    val requestBody = object : RequestBody() {
+                        override fun contentType() = mimeType.toMediaTypeOrNull()
+
+                        override fun writeTo(sink: BufferedSink) {
+                            contentResolver.openInputStream(uri)?.use { inputStream ->
+                                inputStream.source().use { source ->
+                                    sink.writeAll(source)
+                                }
+                            }
+                        }
+                    }
+
+                    val result = hydrusRepository.addFile(requestBody)
+                    if (result.isSuccess) {
+                        val response = result.getOrNull()
+                        val status = response?.status ?: 3 // Default to failed if null
+
+                        when (status) {
+                            1 -> successCount++
+                            2 -> presentCount++
+                            else -> failedCount++
+                        }
+
+                        if (deleteAfterUpload && (status == 1 || status == 2)) {
+                            try {
+                                android.provider.DocumentsContract.deleteDocument(contentResolver, uri)
+                            } catch (e: SecurityException) {
+                                // OS blocked deletion due to Scoped Storage policies
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    } else {
+                        failedCount++
+                    }
+                    _uiState.update { it.copy(batchProgress = it.batchProgress + 1) }
+                }
+
+                _uiState.update {
+                    it.copy(
+                        showUploadResults = true,
+                        uploadSuccessCount = successCount,
+                        uploadDuplicateCount = presentCount,
+                        uploadErrorCount = failedCount
+                    )
+                }
+
+                if (successCount > 0 || presentCount > 0) {
+                    // refresh gallery to show the new file if applicable
+                    fetchGallery(tagsText = _uiState.value.searchQuery)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error uploading files"))
+            } finally {
+                _uiState.update { it.copy(isProcessingBatch = false) }
+            }
+        }
+    }
+
+    fun dismissUploadResults() {
+        _uiState.update { it.copy(showUploadResults = false) }
     }
 }

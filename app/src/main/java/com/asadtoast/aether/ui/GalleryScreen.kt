@@ -325,6 +325,25 @@ fun GalleryScreen(
         )
     }
 
+    if (uiState.showUploadResults) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissUploadResults() },
+            title = { Text("Upload Summary") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("Successfully uploaded: ${uiState.uploadSuccessCount}")
+                    Text("Already in Hydrus: ${uiState.uploadDuplicateCount}")
+                    Text("Failed/Errors: ${uiState.uploadErrorCount}")
+                }
+            },
+            confirmButton = {
+                Button(onClick = { viewModel.dismissUploadResults() }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -355,6 +374,16 @@ fun GalleryScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             // progress bar
+            var batchDots by remember { mutableIntStateOf(0) }
+            LaunchedEffect(uiState.isProcessingBatch) {
+                if (uiState.isProcessingBatch) {
+                    while (isActive) {
+                        batchDots = (batchDots + 1) % 4
+                        kotlinx.coroutines.delay(300.milliseconds)
+                    }
+                }
+            }
+
             AnimatedVisibility(visible = uiState.isProcessingBatch) {
                 Column(
                     modifier = Modifier
@@ -367,7 +396,7 @@ fun GalleryScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Processing files in background...",
+                            text = "${uiState.batchOperationMessage}${".".repeat(batchDots)}",
                             style = MaterialTheme.typography.labelMedium,
                             color = Color.Gray
                         )
