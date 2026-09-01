@@ -1314,10 +1314,14 @@ fun TagDetailDialog(
                 )
                 if (currentEntry.references.isNotEmpty()) {
                     currentEntry.references.forEach { ref ->
-                        val displayText = if (ref.originalTag.isNotBlank()) {
-                            "${ref.siteName} (${ref.originalTag})"
-                        } else {
-                            ref.siteName
+                        val displayText = buildString {
+                            append(ref.siteName)
+                            if (ref.originalTag.isNotBlank()) {
+                                append(" (${ref.originalTag})")
+                            }
+                            if (ref.romaji.isNotBlank()) {
+                                append(" (${ref.romaji})")
+                            }
                         }
 
                         val domain = try {

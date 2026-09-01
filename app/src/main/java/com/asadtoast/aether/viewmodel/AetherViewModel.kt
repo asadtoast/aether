@@ -888,7 +888,7 @@ class AetherViewModel(
                         if (deleteAfterUpload && (status == 1 || status == 2)) {
                             try {
                                 android.provider.DocumentsContract.deleteDocument(contentResolver, uri)
-                            } catch (e: SecurityException) {
+                            } catch (_: SecurityException) {
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
