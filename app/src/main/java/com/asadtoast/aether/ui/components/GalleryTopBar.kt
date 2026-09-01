@@ -91,6 +91,32 @@ fun GalleryTopBar(
     }
 
     if (isSelectionMode) {
+        var showLinkConfirmationDialog by remember { mutableStateOf(false) }
+
+        if (showLinkConfirmationDialog) {
+            AlertDialog(
+                onDismissRequest = { showLinkConfirmationDialog = false },
+                title = { Text("Link Files") },
+                text = { Text("Are you sure you want to link ${selectedFiles.size} files? This action cannot be easily undone from the app.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.linkMultipleFiles(selectedFiles)
+                            onSelectionModeChange(false)
+                            showLinkConfirmationDialog = false
+                        }
+                    ) {
+                        Text("Link")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showLinkConfirmationDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -119,10 +145,7 @@ fun GalleryTopBar(
                 }
 
                 IconButton(
-                    onClick = {
-                        viewModel.linkMultipleFiles(selectedFiles)
-                        onSelectionModeChange(false)
-                    },
+                    onClick = { showLinkConfirmationDialog = true },
                     enabled = selectedFiles.size > 1
                 ) {
                     Icon(
