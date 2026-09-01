@@ -314,7 +314,12 @@ class AetherViewModel(
         if (!isReview) {
             // gallery refresh after processing
             _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-            currentPagingSource?.invalidate()
+            if (hasModifications) {
+                _searchTrigger.value += 1
+                hasModifications = false
+            } else {
+                currentPagingSource?.invalidate()
+            }
         }
     }
 
@@ -322,7 +327,7 @@ class AetherViewModel(
         _uiState.update { it.copy(reviewIndex = 0) }
         if (hasModifications) {
             _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-            currentPagingSource?.invalidate()
+            _searchTrigger.value += 1
             hasModifications = false
         }
     }
@@ -497,19 +502,22 @@ class AetherViewModel(
                     }.awaitAll()
 
                     withContext(Dispatchers.Main) {
-                        if (_uiState.value.isTrashMode) {
-                            currentActiveIds.removeAll(batch)
-                            hasModifications = true
-                        }
+                        currentActiveIds.removeAll(batch)
+                        hasModifications = true
                         _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
                     }
                 }
             }
 
             _uiState.update { it.copy(isProcessingBatch = false) }
-            if (!skipRefresh && _uiState.value.isTrashMode) {
+            if (!skipRefresh) {
                 _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                currentPagingSource?.invalidate()
+                if (!_uiState.value.isReviewMode) {
+                    currentPagingSource?.invalidate()
+                } else {
+                    _searchTrigger.value += 1
+                    hasModifications = false
+                }
             }
         }
     }
@@ -529,19 +537,22 @@ class AetherViewModel(
                         }
                     }.awaitAll()
                     withContext(Dispatchers.Main) {
-                        if (_uiState.value.isTrashMode) {
-                            currentActiveIds.removeAll(batch)
-                            hasModifications = true
-                        }
+                        currentActiveIds.removeAll(batch)
+                        hasModifications = true
                         _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
                     }
                 }
             }
 
             _uiState.update { it.copy(isProcessingBatch = false) }
-            if (!skipRefresh && _uiState.value.isTrashMode) {
+            if (!skipRefresh) {
                 _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                currentPagingSource?.invalidate()
+                if (!_uiState.value.isReviewMode) {
+                    currentPagingSource?.invalidate()
+                } else {
+                    _searchTrigger.value += 1
+                    hasModifications = false
+                }
             }
         }
     }
@@ -561,19 +572,22 @@ class AetherViewModel(
                         }
                     }.awaitAll()
                     withContext(Dispatchers.Main) {
-                        if (_uiState.value.isTrashMode) {
-                            currentActiveIds.removeAll(batch)
-                            hasModifications = true
-                        }
+                        currentActiveIds.removeAll(batch)
+                        hasModifications = true
                         _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
                     }
                 }
             }
 
             _uiState.update { it.copy(isProcessingBatch = false) }
-            if (!skipRefresh && _uiState.value.isTrashMode) {
+            if (!skipRefresh) {
                 _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                currentPagingSource?.invalidate()
+                if (!_uiState.value.isReviewMode) {
+                    currentPagingSource?.invalidate()
+                } else {
+                    _searchTrigger.value += 1
+                    hasModifications = false
+                }
             }
         }
     }

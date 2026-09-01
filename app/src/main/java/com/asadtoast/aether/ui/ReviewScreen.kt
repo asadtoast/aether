@@ -60,14 +60,21 @@ fun ReviewScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    val handleClose = {
+        viewModel.setReviewMode(false)
+        viewModel.resetReviewIndex()
+        onClose()
+    }
+
     androidx.compose.runtime.DisposableEffect(Unit) {
         onDispose {
+            viewModel.setReviewMode(false)
             viewModel.resetReviewIndex()
         }
     }
 
     // intercept android back button
-    BackHandler { onClose() }
+    BackHandler { handleClose() }
 
     //file loader (for massive files)
     val context = LocalContext.current
@@ -100,7 +107,7 @@ fun ReviewScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Button(onClick = onClose) { Text("Review completed. Close") }
+                Button(onClick = handleClose) { Text("Review completed. Close") }
             }
         } else {
             // obtain current picture from list
@@ -244,7 +251,7 @@ fun ReviewScreen(
 
                 // layer 2, close button
                 IconButton(
-                    onClick = onClose,
+                    onClick = handleClose,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .statusBarsPadding()
