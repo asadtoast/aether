@@ -297,6 +297,14 @@ fun GalleryTopBar(
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         DropdownMenuItem(
+                            text = { Text("Upload files") },
+                            onClick = {
+                                showMenu = false
+                                showUploadDialog = true
+                            },
+                            leadingIcon = { Icon(Icons.Default.Upload, contentDescription = null) }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Archive / Delete") },
                             onClick = {
                                 showMenu = false
@@ -321,10 +329,6 @@ fun GalleryTopBar(
                             leadingIcon = { Icon(Icons.Default.Collections, contentDescription = null) }
                         )
                     }
-                }
-
-                IconButton(onClick = { showUploadDialog = true }) {
-                    Icon(Icons.Default.Upload, contentDescription = "Upload files")
                 }
 
                 IconButton(onClick = onOpenSettings) {
