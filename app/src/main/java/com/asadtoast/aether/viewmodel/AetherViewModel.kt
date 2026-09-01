@@ -332,14 +332,12 @@ class AetherViewModel(
         viewModelScope.launch {
             val result = hydrusRepository.trashFile(fileId = fileId)
             if (result.isSuccess) {
-                if (_uiState.value.isTrashMode) {
-                    currentActiveIds.remove(fileId)
-                    hasModifications = true
-                    if (_uiState.value.totalFilesCount <= 1) onEmptyList()
-                    if (!_uiState.value.isReviewMode) {
-                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                        currentPagingSource?.invalidate()
-                    }
+                currentActiveIds.remove(fileId)
+                hasModifications = true
+                if (currentActiveIds.isEmpty()) onEmptyList()
+                if (!_uiState.value.isReviewMode) {
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                    currentPagingSource?.invalidate()
                 }
             }
         }
@@ -350,14 +348,12 @@ class AetherViewModel(
         viewModelScope.launch {
             val result = hydrusRepository.archiveFile(fileId = fileId)
             if (result.isSuccess) {
-                if (_uiState.value.isTrashMode) {
-                    currentActiveIds.remove(fileId)
-                    hasModifications = true
-                    if (_uiState.value.totalFilesCount <= 1) onEmptyList()
-                    if (!_uiState.value.isReviewMode) {
-                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                        currentPagingSource?.invalidate()
-                    }
+                currentActiveIds.remove(fileId)
+                hasModifications = true
+                if (currentActiveIds.isEmpty()) onEmptyList()
+                if (!_uiState.value.isReviewMode) {
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                    currentPagingSource?.invalidate()
                 }
             }
         }
@@ -368,14 +364,12 @@ class AetherViewModel(
         viewModelScope.launch {
             val result = hydrusRepository.unarchiveFile(fileId = fileId)
             if (result.isSuccess) {
-                if (_uiState.value.isTrashMode) {
-                    currentActiveIds.remove(fileId)
-                    hasModifications = true
-                    if (_uiState.value.totalFilesCount <= 1) onEmptyList()
-                    if (!_uiState.value.isReviewMode) {
-                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                        currentPagingSource?.invalidate()
-                    }
+                currentActiveIds.remove(fileId)
+                hasModifications = true
+                if (currentActiveIds.isEmpty()) onEmptyList()
+                if (!_uiState.value.isReviewMode) {
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                    currentPagingSource?.invalidate()
                 }
             }
         }
@@ -392,14 +386,12 @@ class AetherViewModel(
         viewModelScope.launch {
             val result = hydrusRepository.restoreFile(fileId = fileId)
             if (result.isSuccess) {
-                if (_uiState.value.isTrashMode) {
-                    currentActiveIds.remove(fileId)
-                    hasModifications = true
-                    if (_uiState.value.totalFilesCount <= 1) onEmptyList()
-                    if (!_uiState.value.isReviewMode) {
-                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                        currentPagingSource?.invalidate()
-                    }
+                currentActiveIds.remove(fileId)
+                hasModifications = true
+                if (currentActiveIds.isEmpty()) onEmptyList()
+                if (!_uiState.value.isReviewMode) {
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                    currentPagingSource?.invalidate()
                 }
             }
         }
@@ -841,7 +833,7 @@ class AetherViewModel(
                     val result = hydrusRepository.addFile(requestBody)
                     if (result.isSuccess) {
                         val response = result.getOrNull()
-                        val status = response?.status ?: 3 // Default to failed if null
+                        val status = response?.status ?: 3 // default to failed if null
 
                         when (status) {
                             1 -> successCount++
