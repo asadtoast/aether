@@ -64,7 +64,8 @@ data class GalleryUiState(
     val showUploadResults: Boolean = false,
     val uploadSuccessCount: Int = 0,
     val uploadDuplicateCount: Int = 0,
-    val uploadErrorCount: Int = 0
+    val uploadErrorCount: Int = 0,
+    val uploadErrors: List<Pair<String, String>> = emptyList()
 )
 
 class AetherViewModel(
@@ -827,13 +828,31 @@ class AetherViewModel(
                 var successCount = 0
                 var presentCount = 0
                 var failedCount = 0
+                val errorsList = mutableListOf<Pair<String, String>>()
                 val contentResolver = context.contentResolver
 
                 for (uri in uris) {
                     val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
 
+                    var fileName = "Unknown file"
+                    var fileSize = -1L
+                    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                            if (nameIndex != -1) {
+                                fileName = cursor.getString(nameIndex)
+                            }
+                            val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                            if (sizeIndex != -1) {
+                                fileSize = cursor.getLong(sizeIndex)
+                            }
+                        }
+                    }
+
                     val requestBody = object : RequestBody() {
                         override fun contentType() = mimeType.toMediaTypeOrNull()
+
+                        override fun contentLength(): Long = fileSize
 
                         override fun writeTo(sink: BufferedSink) {
                             contentResolver.openInputStream(uri)?.use { inputStream ->
@@ -852,20 +871,33 @@ class AetherViewModel(
                         when (status) {
                             1 -> successCount++
                             2 -> presentCount++
-                            else -> failedCount++
+                            3 -> {
+                                failedCount++
+                                errorsList.add(fileName to "Rejected: File is in the server's trash")
+                            }
+                            4 -> {
+                                failedCount++
+                                errorsList.add(fileName to "Rejected: Server processing failed (FFmpeg timeout or invalid format)")
+                            }
+                            else -> {
+                                failedCount++
+                                errorsList.add(fileName to "Rejected: Unknown API status $status")
+                            }
                         }
 
                         if (deleteAfterUpload && (status == 1 || status == 2)) {
                             try {
                                 android.provider.DocumentsContract.deleteDocument(contentResolver, uri)
                             } catch (e: SecurityException) {
-                                // OS blocked deletion due to Scoped Storage policies
                             } catch (e: Exception) {
                                 e.printStackTrace()
                             }
                         }
                     } else {
                         failedCount++
+                        val exception = result.exceptionOrNull()
+                        val errorMsg = exception?.message ?: "Unknown network error"
+                        errorsList.add(fileName to errorMsg)
                     }
                     _uiState.update { it.copy(batchProgress = it.batchProgress + 1) }
                 }
@@ -875,7 +907,8 @@ class AetherViewModel(
                         showUploadResults = true,
                         uploadSuccessCount = successCount,
                         uploadDuplicateCount = presentCount,
-                        uploadErrorCount = failedCount
+                        uploadErrorCount = failedCount,
+                        uploadErrors = errorsList
                     )
                 }
 
@@ -893,6 +926,6 @@ class AetherViewModel(
     }
 
     fun dismissUploadResults() {
-        _uiState.update { it.copy(showUploadResults = false) }
+        _uiState.update { it.copy(showUploadResults = false, uploadErrors = emptyList()) }
     }
 }

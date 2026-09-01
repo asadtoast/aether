@@ -15,8 +15,10 @@ object HydrusNetwork {
 
     private val client = OkHttpClient.Builder()
         .addInterceptor(logging)
+        .connectTimeout(10, java.util.concurrent.TimeUnit.MINUTES)
+        .readTimeout(10, java.util.concurrent.TimeUnit.MINUTES)
+        .writeTimeout(10, java.util.concurrent.TimeUnit.MINUTES)
         .build()
-
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
