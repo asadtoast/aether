@@ -158,6 +158,7 @@ fun FullScreenViewer(
     // info panel
     var isPagerScrollEnabled by remember { mutableStateOf(true) }
     val existingTagsText by viewModel.currentImageTags.collectAsState()
+    val clipboardTags by viewModel.clipboardTags.collectAsState()
 
     // slideshow states
     var isSlideshowActive by remember { mutableStateOf(false) }
@@ -419,6 +420,37 @@ fun FullScreenViewer(
                                             )
                                         }
 
+                                        if (!isEditMode) {
+                                            IconButton(
+                                                onClick = {
+                                                    val tagsList = existingTagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                                                    viewModel.copyTagsToClipboard(tagsList)
+                                                },
+                                                modifier = Modifier.padding(start = 4.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ContentCopy,
+                                                    contentDescription = "Copy Tags",
+                                                    tint = Color.White
+                                                )
+                                            }
+                                        }
+
+                                        if (isEditMode && clipboardTags.isNotEmpty()) {
+                                            IconButton(
+                                                onClick = {
+                                                    viewModel.pasteTagsFromClipboard(pageFile.id)
+                                                },
+                                                modifier = Modifier.padding(start = 4.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ContentPaste,
+                                                    contentDescription = "Paste Tags",
+                                                    tint = Color.White
+                                                )
+                                            }
+                                        }
+
                                         IconButton(
                                             onClick = {
                                                 focusManager.clearFocus()
@@ -434,7 +466,7 @@ fun FullScreenViewer(
                                                 }
                                                 isEditMode = !isEditMode
                                             },
-                                            modifier = Modifier.padding(start = 8.dp)
+                                            modifier = Modifier.padding(start = 4.dp)
                                         ) {
                                             Icon(
                                                 imageVector = if (isEditMode) Icons.Default.Check else Icons.Default.Edit,

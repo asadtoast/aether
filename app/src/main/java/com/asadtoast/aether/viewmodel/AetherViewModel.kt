@@ -137,6 +137,10 @@ class AetherViewModel(
     val currentImageTags = _currentImageTags.asStateFlow()
     private val _currentMimeType = MutableStateFlow("")
 
+    // state for clipboard tags
+    private val _clipboardTags = MutableStateFlow<List<String>>(emptyList())
+    val clipboardTags = _clipboardTags.asStateFlow()
+
     // state for alternate files
     private val _currentAlternates = MutableStateFlow<List<String>>(emptyList())
     val currentAlternates = _currentAlternates.asStateFlow()
@@ -265,6 +269,28 @@ class AetherViewModel(
             val result = hydrusRepository.addTags(request)
             if (result.isSuccess) {
                 fetchExistingTagsForImage(fileId)
+            }
+        }
+    }
+
+    // copy clipboard
+    fun copyTagsToClipboard(tags: List<String>) {
+        _clipboardTags.value = tags
+    }
+
+    // paste from clipboard
+    fun pasteTagsFromClipboard(fileId: Long) {
+        val tagsList = _clipboardTags.value
+        if (tagsList.isNotEmpty()) {
+            viewModelScope.launch {
+                val request = AddTagsRequest(
+                    file_id = fileId,
+                    service_names_to_tags = mapOf("my tags" to tagsList)
+                )
+                val result = hydrusRepository.addTags(request)
+                if (result.isSuccess) {
+                    fetchExistingTagsForImage(fileId)
+                }
             }
         }
     }
