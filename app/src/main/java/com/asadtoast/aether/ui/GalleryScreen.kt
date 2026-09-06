@@ -396,55 +396,6 @@ fun GalleryScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // progress bar
-            var batchDots by remember { mutableIntStateOf(0) }
-            LaunchedEffect(uiState.isProcessingBatch) {
-                if (uiState.isProcessingBatch) {
-                    while (isActive) {
-                        batchDots = (batchDots + 1) % 4
-                        kotlinx.coroutines.delay(300.milliseconds)
-                    }
-                }
-            }
-
-            AnimatedVisibility(visible = uiState.isProcessingBatch) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${uiState.batchOperationMessage}${".".repeat(batchDots)}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.Gray
-                        )
-                        Text(
-                            text = "${uiState.batchProgress} / ${uiState.batchTotal}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.Gray
-                        )
-                    }
-                    LinearProgressIndicator(
-                        progress = {
-                            if (uiState.batchTotal > 0) {
-                                uiState.batchProgress.toFloat() / uiState.batchTotal.toFloat()
-                            } else 0f
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp)
-                            .height(4.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                }
-            }
-
             // gallery content
             val isRefreshing = pagedImages.loadState.refresh is LoadState.Loading
             val isEmpty = pagedImages.itemCount == 0
@@ -545,6 +496,85 @@ fun GalleryScreen(
                 pagedImages = pagedImages,
                 onClose = { viewModel.setReviewMode(false) }
             )
+        }
+
+        // full-screen blocking overlay for batch processing
+        if (uiState.isProcessingBatch) {
+            var batchDots by remember { mutableIntStateOf(0) }
+            LaunchedEffect(Unit) {
+                while (isActive) {
+                    batchDots = (batchDots + 1) % 4
+                    kotlinx.coroutines.delay(300.milliseconds)
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    // Intercept all touch events to block interaction with the UI below
+                    .combinedClickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth(0.8f)
+                        .background(
+                            color = MaterialTheme.colorScheme.surface,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                        )
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "${uiState.batchOperationMessage}${".".repeat(batchDots)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "${uiState.batchProgress} / ${uiState.batchTotal}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    LinearProgressIndicator(
+                        progress = {
+                            if (uiState.batchTotal > 0) {
+                                uiState.batchProgress.toFloat() / uiState.batchTotal.toFloat()
+                            } else 0f
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    TextButton(
+                        onClick = { viewModel.cancelBatchOperation() }
+                    ) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
         }
     }
 }

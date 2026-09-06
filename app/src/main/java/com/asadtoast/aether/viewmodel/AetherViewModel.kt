@@ -32,10 +32,12 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.filter
 import com.asadtoast.aether.data.HydrusPagingSource
+import kotlinx.coroutines.isActive
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
 import okio.BufferedSink
 import okio.source
+import kotlin.coroutines.cancellation.CancellationException
 
 sealed class UiEvent {
     data class ShowToast(val message: String) : UiEvent()
@@ -150,6 +152,7 @@ class AetherViewModel(
 
     private var lastSearchQuery = ""
     private var galleryJob: kotlinx.coroutines.Job? = null
+    private var batchJob: kotlinx.coroutines.Job? = null
 
     // database engine
     val allWikiEntries = wikiRepo.allWikiEntries
@@ -938,7 +941,8 @@ class AetherViewModel(
     fun uploadFiles(context: Context, uris: List<Uri>, deleteAfterUpload: Boolean = false) {
         if (uris.isEmpty()) return
 
-        viewModelScope.launch {
+        batchJob?.cancel()
+        batchJob = viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Uploading", batchTotal = uris.size, batchProgress = 0) }
                 _uiEvents.emit(UiEvent.ShowToast("Uploading ${uris.size} file(s)..."))
@@ -950,6 +954,8 @@ class AetherViewModel(
                 val contentResolver = context.contentResolver
 
                 for (uri in uris) {
+                    if (!isActive) break
+
                     val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
 
                     var fileName = "Unknown file"
@@ -1034,12 +1040,23 @@ class AetherViewModel(
                     // refresh gallery to show the new file if applicable
                     fetchGallery(tagsText = _uiState.value.searchQuery)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 e.printStackTrace()
                 _uiEvents.emit(UiEvent.ShowToast("Error uploading files"))
             } finally {
                 _uiState.update { it.copy(isProcessingBatch = false) }
             }
+        }
+    }
+
+    fun cancelBatchOperation() {
+        batchJob?.cancel()
+        batchJob = null
+        _uiState.update { it.copy(isProcessingBatch = false) }
+        viewModelScope.launch {
+            _uiEvents.emit(UiEvent.ShowToast("Upload cancelled"))
         }
     }
 
