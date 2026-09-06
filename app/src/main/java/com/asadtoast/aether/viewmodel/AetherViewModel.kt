@@ -236,18 +236,17 @@ class AetherViewModel(
                     val response = searchResponse.getOrNull()!!
                     val fetchedIds = response.file_ids
                     currentActiveIds = fetchedIds.toMutableList()
-                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size, isLoading = false) }
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
 
                     if (currentActiveIds.isNotEmpty()) {
                         _searchTrigger.value += 1
                     }
-                } else {
-                    _uiState.update { it.copy(isLoading = false) }
                 }
-
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false) }
                 e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error fetching gallery"))
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
             }
         }
     }
@@ -261,14 +260,19 @@ class AetherViewModel(
     // add tag to file function
     fun addTagsToImage(fileId: Long, tagsText: String) {
         viewModelScope.launch {
-            val tagsList = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-            if (tagsList.isEmpty()) return@launch
+            try {
+                val tagsList = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                if (tagsList.isEmpty()) return@launch
 
-            val request = AddTagsRequest(file_id = fileId, service_names_to_tags = mapOf("my tags" to tagsList))
+                val request = AddTagsRequest(file_id = fileId, service_names_to_tags = mapOf("my tags" to tagsList))
 
-            val result = hydrusRepository.addTags(request)
-            if (result.isSuccess) {
-                fetchExistingTagsForImage(fileId)
+                val result = hydrusRepository.addTags(request)
+                if (result.isSuccess) {
+                    fetchExistingTagsForImage(fileId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error adding tags"))
             }
         }
     }
@@ -283,13 +287,18 @@ class AetherViewModel(
         val tagsList = _clipboardTags.value
         if (tagsList.isNotEmpty()) {
             viewModelScope.launch {
-                val request = AddTagsRequest(
-                    file_id = fileId,
-                    service_names_to_tags = mapOf("my tags" to tagsList)
-                )
-                val result = hydrusRepository.addTags(request)
-                if (result.isSuccess) {
-                    fetchExistingTagsForImage(fileId)
+                try {
+                    val request = AddTagsRequest(
+                        file_id = fileId,
+                        service_names_to_tags = mapOf("my tags" to tagsList)
+                    )
+                    val result = hydrusRepository.addTags(request)
+                    if (result.isSuccess) {
+                        fetchExistingTagsForImage(fileId)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    _uiEvents.emit(UiEvent.ShowToast("Error pasting tags"))
                 }
             }
         }
@@ -298,14 +307,19 @@ class AetherViewModel(
     // remove tags from file function
     fun removeTagsFromImage(fileId: Long, tagsToRemove: String) {
         viewModelScope.launch {
-            val tagsList = tagsToRemove.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-            if (tagsList.isEmpty()) return@launch
+            try {
+                val tagsList = tagsToRemove.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                if (tagsList.isEmpty()) return@launch
 
-            val request = AddTagsRequest(file_id = fileId, service_names_to_actions_to_tags = mapOf("my tags" to mapOf("1" to tagsList)))
+                val request = AddTagsRequest(file_id = fileId, service_names_to_actions_to_tags = mapOf("my tags" to mapOf("1" to tagsList)))
 
-            val result = hydrusRepository.addTags(request)
-            if (result.isSuccess) {
-                fetchExistingTagsForImage(fileId)
+                val result = hydrusRepository.addTags(request)
+                if (result.isSuccess) {
+                    fetchExistingTagsForImage(fileId)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error removing tags"))
             }
         }
     }
@@ -316,23 +330,28 @@ class AetherViewModel(
             _isLoadingMetadata.value = true
             _currentImageTags.value = "Loading tags..."
 
-            val result = hydrusRepository.getFileMetadata(listOf(fileId))
-            if (result.isSuccess) {
-                val response = result.getOrNull()!!
-                if (response.metadata.isNotEmpty()) {
-                    val metadataItem = response.metadata[0]
-                    _currentMimeType.value = metadataItem.mime
+            try {
+                val result = hydrusRepository.getFileMetadata(listOf(fileId))
+                if (result.isSuccess) {
+                    val response = result.getOrNull()!!
+                    if (response.metadata.isNotEmpty()) {
+                        val metadataItem = response.metadata[0]
+                        _currentMimeType.value = metadataItem.mime
 
-                    val tagsList = metadataItem.tags?.values?.find { it.name == "my tags" }?.display_tags?.get("0") ?: emptyList()
-                    _currentImageTags.value = tagsList.joinToString(", ")
+                        val tagsList = metadataItem.tags?.values?.find { it.name == "my tags" }?.display_tags?.get("0") ?: emptyList()
+                        _currentImageTags.value = tagsList.joinToString(", ")
+                    } else {
+                        _currentImageTags.value = ""
+                    }
                 } else {
                     _currentImageTags.value = ""
                 }
-            } else {
+            } catch (e: Exception) {
+                e.printStackTrace()
                 _currentImageTags.value = ""
+            } finally {
+                _isLoadingMetadata.value = false
             }
-
-            _isLoadingMetadata.value = false
         }
     }
 
@@ -362,15 +381,20 @@ class AetherViewModel(
     // function to read, send to trash and update
     fun trashSpecificFile(fileId: Long, onEmptyList: () -> Unit) {
         viewModelScope.launch {
-            val result = hydrusRepository.trashFile(fileId = fileId)
-            if (result.isSuccess) {
-                currentActiveIds.remove(fileId)
-                hasModifications = true
-                if (currentActiveIds.isEmpty()) onEmptyList()
-                if (!_uiState.value.isReviewMode) {
-                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                    currentPagingSource?.invalidate()
+            try {
+                val result = hydrusRepository.trashFile(fileId = fileId)
+                if (result.isSuccess) {
+                    currentActiveIds.remove(fileId)
+                    hasModifications = true
+                    if (currentActiveIds.isEmpty()) onEmptyList()
+                    if (!_uiState.value.isReviewMode) {
+                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                        currentPagingSource?.invalidate()
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error trashing file"))
             }
         }
     }
@@ -378,15 +402,20 @@ class AetherViewModel(
     // archive specific file and update
     fun archiveFile(fileId: Long, onEmptyList: () -> Unit) {
         viewModelScope.launch {
-            val result = hydrusRepository.archiveFile(fileId = fileId)
-            if (result.isSuccess) {
-                currentActiveIds.remove(fileId)
-                hasModifications = true
-                if (currentActiveIds.isEmpty()) onEmptyList()
-                if (!_uiState.value.isReviewMode) {
-                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                    currentPagingSource?.invalidate()
+            try {
+                val result = hydrusRepository.archiveFile(fileId = fileId)
+                if (result.isSuccess) {
+                    currentActiveIds.remove(fileId)
+                    hasModifications = true
+                    if (currentActiveIds.isEmpty()) onEmptyList()
+                    if (!_uiState.value.isReviewMode) {
+                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                        currentPagingSource?.invalidate()
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error archiving file"))
             }
         }
     }
@@ -394,15 +423,20 @@ class AetherViewModel(
     // inbox specific file and update
     fun inboxFile(fileId: Long, onEmptyList: () -> Unit) {
         viewModelScope.launch {
-            val result = hydrusRepository.unarchiveFile(fileId = fileId)
-            if (result.isSuccess) {
-                currentActiveIds.remove(fileId)
-                hasModifications = true
-                if (currentActiveIds.isEmpty()) onEmptyList()
-                if (!_uiState.value.isReviewMode) {
-                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                    currentPagingSource?.invalidate()
+            try {
+                val result = hydrusRepository.unarchiveFile(fileId = fileId)
+                if (result.isSuccess) {
+                    currentActiveIds.remove(fileId)
+                    hasModifications = true
+                    if (currentActiveIds.isEmpty()) onEmptyList()
+                    if (!_uiState.value.isReviewMode) {
+                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                        currentPagingSource?.invalidate()
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error moving file to inbox"))
             }
         }
     }
@@ -412,19 +446,23 @@ class AetherViewModel(
         _uiState.update { it.copy(reviewIndex = it.reviewIndex + 1) }
     }
 
-
     // restore from trash
     fun restoreImage(fileId: Long, onEmptyList: () -> Unit) {
         viewModelScope.launch {
-            val result = hydrusRepository.restoreFile(fileId = fileId)
-            if (result.isSuccess) {
-                currentActiveIds.remove(fileId)
-                hasModifications = true
-                if (currentActiveIds.isEmpty()) onEmptyList()
-                if (!_uiState.value.isReviewMode) {
-                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                    currentPagingSource?.invalidate()
+            try {
+                val result = hydrusRepository.restoreFile(fileId = fileId)
+                if (result.isSuccess) {
+                    currentActiveIds.remove(fileId)
+                    hasModifications = true
+                    if (currentActiveIds.isEmpty()) onEmptyList()
+                    if (!_uiState.value.isReviewMode) {
+                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                        currentPagingSource?.invalidate()
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error restoring file"))
             }
         }
     }
@@ -434,7 +472,12 @@ class AetherViewModel(
         if (_uiState.value.reviewIndex > 0) {
             _uiState.update { it.copy(reviewIndex = it.reviewIndex - 1) }
             viewModelScope.launch {
-                hydrusRepository.restoreFile(fileId = revertedFileId)
+                try {
+                    hydrusRepository.restoreFile(fileId = revertedFileId)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    _uiEvents.emit(UiEvent.ShowToast("Error undoing review"))
+                }
             }
         }
     }
@@ -471,21 +514,26 @@ class AetherViewModel(
             )
         }
 
-        // remote search and merge
-        val result = hydrusRepository.searchTags(currentWord)
-        return if (result.isSuccess) {
-            val response = result.getOrNull()
-            val apiSuggestions = response?.tags ?: emptyList()
+        return try {
+            // remote search and merge
+            val result = hydrusRepository.searchTags(currentWord)
+            if (result.isSuccess) {
+                val response = result.getOrNull()
+                val apiSuggestions = response?.tags ?: emptyList()
 
-            // update local database count in background
-            wikiRepo.updateExistingTagCounts(apiSuggestions)
+                // update local database count in background
+                wikiRepo.updateExistingTagCounts(apiSuggestions)
 
-            // combine server and local, then delete dupes
-            (apiSuggestions + localSuggestions).distinctBy {
-                if (it.value.contains("➔")) it.value.substringAfter("➔").trim() else it.value
-            }.sortedByDescending { it.count }
-        } else {
-            // if no network, show local (check if still useful)
+                // combine server and local, then delete dupes
+                (apiSuggestions + localSuggestions).distinctBy {
+                    if (it.value.contains("➔")) it.value.substringAfter("➔").trim() else it.value
+                }.sortedByDescending { it.count }
+            } else {
+                // if no network, show local (check if still useful)
+                localSuggestions
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
             localSuggestions
         }
     }
@@ -521,30 +569,36 @@ class AetherViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = fileIds.size, batchProgress = 0) }
 
-            // background work
-            withContext(Dispatchers.IO) {
-                fileIds.chunked(50).forEach { batch ->
-                    batch.map { id ->
-                        async { hydrusRepository.trashFile(fileId = id) }
-                    }.awaitAll()
+            try {
+                // background work
+                withContext(Dispatchers.IO) {
+                    fileIds.chunked(50).forEach { batch ->
+                        batch.map { id ->
+                            async { hydrusRepository.trashFile(fileId = id) }
+                        }.awaitAll()
 
-                    withContext(Dispatchers.Main) {
-                        currentActiveIds.removeAll(batch)
-                        hasModifications = true
-                        _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
+                        withContext(Dispatchers.Main) {
+                            currentActiveIds.removeAll(batch)
+                            hasModifications = true
+                            _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
+                        }
                     }
                 }
-            }
 
-            _uiState.update { it.copy(isProcessingBatch = false) }
-            if (!skipRefresh) {
-                _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                if (!_uiState.value.isReviewMode) {
-                    currentPagingSource?.invalidate()
-                } else {
-                    _searchTrigger.value += 1
-                    hasModifications = false
+                if (!skipRefresh) {
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                    if (!_uiState.value.isReviewMode) {
+                        currentPagingSource?.invalidate()
+                    } else {
+                        _searchTrigger.value += 1
+                        hasModifications = false
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error trashing multiple files"))
+            } finally {
+                _uiState.update { it.copy(isProcessingBatch = false) }
             }
         }
     }
@@ -555,31 +609,37 @@ class AetherViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = fileIds.size, batchProgress = 0) }
 
-            withContext(Dispatchers.IO) {
-                fileIds.chunked(50).forEach { batch ->
-                    batch.map { id ->
-                        async {
-                            hydrusRepository.restoreFile(fileId = id)
-                            hydrusRepository.archiveFile(fileId = id)
+            try {
+                withContext(Dispatchers.IO) {
+                    fileIds.chunked(50).forEach { batch ->
+                        batch.map { id ->
+                            async {
+                                hydrusRepository.restoreFile(fileId = id)
+                                hydrusRepository.archiveFile(fileId = id)
+                            }
+                        }.awaitAll()
+                        withContext(Dispatchers.Main) {
+                            currentActiveIds.removeAll(batch)
+                            hasModifications = true
+                            _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
                         }
-                    }.awaitAll()
-                    withContext(Dispatchers.Main) {
-                        currentActiveIds.removeAll(batch)
-                        hasModifications = true
-                        _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
                     }
                 }
-            }
 
-            _uiState.update { it.copy(isProcessingBatch = false) }
-            if (!skipRefresh) {
-                _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                if (!_uiState.value.isReviewMode) {
-                    currentPagingSource?.invalidate()
-                } else {
-                    _searchTrigger.value += 1
-                    hasModifications = false
+                if (!skipRefresh) {
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                    if (!_uiState.value.isReviewMode) {
+                        currentPagingSource?.invalidate()
+                    } else {
+                        _searchTrigger.value += 1
+                        hasModifications = false
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error archiving multiple files"))
+            } finally {
+                _uiState.update { it.copy(isProcessingBatch = false) }
             }
         }
     }
@@ -590,31 +650,37 @@ class AetherViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = fileIds.size, batchProgress = 0) }
 
-            withContext(Dispatchers.IO) {
-                fileIds.chunked(50).forEach { batch ->
-                    batch.map { id ->
-                        async {
-                            hydrusRepository.restoreFile(fileId = id)
-                            hydrusRepository.unarchiveFile(fileId = id)
+            try {
+                withContext(Dispatchers.IO) {
+                    fileIds.chunked(50).forEach { batch ->
+                        batch.map { id ->
+                            async {
+                                hydrusRepository.restoreFile(fileId = id)
+                                hydrusRepository.unarchiveFile(fileId = id)
+                            }
+                        }.awaitAll()
+                        withContext(Dispatchers.Main) {
+                            currentActiveIds.removeAll(batch)
+                            hasModifications = true
+                            _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
                         }
-                    }.awaitAll()
-                    withContext(Dispatchers.Main) {
-                        currentActiveIds.removeAll(batch)
-                        hasModifications = true
-                        _uiState.update { it.copy(batchProgress = it.batchProgress + batch.size) }
                     }
                 }
-            }
 
-            _uiState.update { it.copy(isProcessingBatch = false) }
-            if (!skipRefresh) {
-                _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                if (!_uiState.value.isReviewMode) {
-                    currentPagingSource?.invalidate()
-                } else {
-                    _searchTrigger.value += 1
-                    hasModifications = false
+                if (!skipRefresh) {
+                    _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                    if (!_uiState.value.isReviewMode) {
+                        currentPagingSource?.invalidate()
+                    } else {
+                        _searchTrigger.value += 1
+                        hasModifications = false
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error moving multiple files to inbox"))
+            } finally {
+                _uiState.update { it.copy(isProcessingBatch = false) }
             }
         }
     }
@@ -628,31 +694,36 @@ class AetherViewModel(
         if (fileIds.isEmpty() || tagsText.isBlank()) return
 
         viewModelScope.launch {
-            val tagsList = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-            if (tagsList.isEmpty()) return@launch
+            try {
+                val tagsList = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                if (tagsList.isEmpty()) return@launch
 
-            _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = 1, batchProgress = 0) }
+                _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = 1, batchProgress = 0) }
 
-            val actionMap = if (isDelete) {
-                mapOf(targetService to mapOf("1" to tagsList))
-            } else {
-                mapOf(targetService to mapOf("0" to tagsList))
+                val actionMap = if (isDelete) {
+                    mapOf(targetService to mapOf("1" to tagsList))
+                } else {
+                    mapOf(targetService to mapOf("0" to tagsList))
+                }
+
+                val request = AddTagsRequest(
+                    file_ids = fileIds.toList(),
+                    service_names_to_actions_to_tags = actionMap
+                )
+
+                val result = hydrusRepository.addTags(request)
+                if (result.isSuccess) {
+                    currentPagingSource?.invalidate()
+                    _uiEvents.emit(UiEvent.ShowToast("Tags updated successfully"))
+                } else {
+                    _uiEvents.emit(UiEvent.ShowToast("Error while updating tag"))
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error modifying tags for multiple files"))
+            } finally {
+                _uiState.update { it.copy(isProcessingBatch = false) }
             }
-
-            val request = AddTagsRequest(
-                file_ids = fileIds.toList(),
-                service_names_to_actions_to_tags = actionMap
-            )
-
-            val result = hydrusRepository.addTags(request)
-            if (result.isSuccess) {
-                currentPagingSource?.invalidate()
-                _uiEvents.emit(UiEvent.ShowToast("Tags updated successfully"))
-            } else {
-                _uiEvents.emit(UiEvent.ShowToast("Error while updating tag"))
-            }
-
-            _uiState.update { it.copy(isProcessingBatch = false) }
         }
     }
 
@@ -662,48 +733,54 @@ class AetherViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = fileIds.size - 1, batchProgress = 0) }
 
-            // fetch metadata to get the hashes required by the relationship API
-            val metadataResult = hydrusRepository.getFileMetadata(fileIds.toList())
+            try {
+                // fetch metadata to get the hashes required by the relationship API
+                val metadataResult = hydrusRepository.getFileMetadata(fileIds.toList())
 
-            if (metadataResult.isSuccess) {
-                val metadataList = metadataResult.getOrNull()?.metadata ?: emptyList()
-                val hashes = metadataList.mapNotNull { it.hash }.filter { it.isNotEmpty() }
+                if (metadataResult.isSuccess) {
+                    val metadataList = metadataResult.getOrNull()?.metadata ?: emptyList()
+                    val hashes = metadataList.mapNotNull { it.hash }.filter { it.isNotEmpty() }
 
-                if (hashes.size >= 2) {
-                    val hashA = hashes.first()
-                    val remainingHashes = hashes.drop(1)
+                    if (hashes.size >= 2) {
+                        val hashA = hashes.first()
+                        val remainingHashes = hashes.drop(1)
 
-                    withContext(Dispatchers.IO) {
-                        // relationship 0 = alternates
-                        val relationshipsList = remainingHashes.map { hashB ->
-                            com.asadtoast.aether.data.FileRelationship(
-                                hash_a = hashA,
-                                hash_b = hashB,
-                                relationship = 0
+                        withContext(Dispatchers.IO) {
+                            // relationship 0 = alternates
+                            val relationshipsList = remainingHashes.map { hashB ->
+                                com.asadtoast.aether.data.FileRelationship(
+                                    hash_a = hashA,
+                                    hash_b = hashB,
+                                    relationship = 0
+                                )
+                            }
+
+                            val request = com.asadtoast.aether.data.SetFileRelationshipsRequest(
+                                relationships = relationshipsList
                             )
+
+                            hydrusRepository.setFileRelationships(request)
+
+                            withContext(Dispatchers.Main) {
+                                _uiState.update { it.copy(batchProgress = remainingHashes.size) }
+                            }
                         }
-
-                        val request = com.asadtoast.aether.data.SetFileRelationshipsRequest(
-                            relationships = relationshipsList
-                        )
-
-                        hydrusRepository.setFileRelationships(request)
-
-                        withContext(Dispatchers.Main) {
-                            _uiState.update { it.copy(batchProgress = remainingHashes.size) }
-                        }
+                        _uiEvents.emit(UiEvent.ShowToast("Files grouped as alternates successfully"))
+                    } else {
+                        _uiEvents.emit(UiEvent.ShowToast("Could not retrieve enough hashes to group files"))
                     }
-                    _uiEvents.emit(UiEvent.ShowToast("Files grouped as alternates successfully"))
                 } else {
-                    _uiEvents.emit(UiEvent.ShowToast("Could not retrieve enough hashes to group files"))
+                    _uiEvents.emit(UiEvent.ShowToast("Error retrieving file metadata"))
                 }
-            } else {
-                _uiEvents.emit(UiEvent.ShowToast("Error retrieving file metadata"))
-            }
 
-            _uiState.update { it.copy(isProcessingBatch = false) }
-            if (!skipRefresh) {
-                currentPagingSource?.invalidate()
+                if (!skipRefresh) {
+                    currentPagingSource?.invalidate()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _uiEvents.emit(UiEvent.ShowToast("Error linking multiple files"))
+            } finally {
+                _uiState.update { it.copy(isProcessingBatch = false) }
             }
         }
     }
@@ -719,61 +796,66 @@ class AetherViewModel(
         viewModelScope.launch {
             _booruScrapeState.value = BooruScrapeState.Loading
 
-            if (source == ScraperSource.PAWCHIVE) {
-                val hash = file.hash
-                if (hash.isNullOrEmpty()) {
-                    _booruScrapeState.value = BooruScrapeState.Error("SHA256 hash is missing for this file.")
+            try {
+                if (source == ScraperSource.PAWCHIVE) {
+                    val hash = file.hash
+                    if (hash.isNullOrEmpty()) {
+                        _booruScrapeState.value = BooruScrapeState.Error("SHA256 hash is missing for this file.")
+                        return@launch
+                    }
+
+                    val result = booruRepository.getTagsForHash(md5 = null, sha256 = hash, source = source)
+                    if (result.isSuccess) {
+                        val tags = result.getOrNull()!!
+                        if (tags.isEmpty()) {
+                            _booruScrapeState.value = BooruScrapeState.Error("No tags found in ${source.name} for this file.")
+                        } else {
+                            _booruScrapeState.value = BooruScrapeState.Success(tags)
+                        }
+                    } else {
+                        _booruScrapeState.value = BooruScrapeState.Error(result.exceptionOrNull()?.message ?: "Error querying ${source.name}.")
+                    }
                     return@launch
                 }
 
-                val result = booruRepository.getTagsForHash(md5 = null, sha256 = hash, source = source)
-                if (result.isSuccess) {
-                    val tags = result.getOrNull()!!
-                    if (tags.isEmpty()) {
-                        _booruScrapeState.value = BooruScrapeState.Error("No tags found in ${source.name} for this file.")
-                    } else {
-                        _booruScrapeState.value = BooruScrapeState.Success(tags)
-                    }
-                } else {
-                    _booruScrapeState.value = BooruScrapeState.Error(result.exceptionOrNull()?.message ?: "Error querying ${source.name}.")
-                }
-                return@launch
-            }
-
-            /*
-            filesize limit for md5 calculation on the fly
-            fallback, calculate MD5 hash by downloading file in streaming memory/bandwidth limit 10MB filesize
-            val sizeLimit = 10 * 1024 * 1024L // 10 MB
-            if (file.size != null && file.size > sizeLimit) {
-                _booruScrapeState.value = BooruScrapeState.Error("File is too large (${file.size / 1024 / 1024}MB) to calculate MD5. Max allowed is 10MB.")
-                return@launch
-            }
-            */
-
-            // calculate md5 hash by downloading file in streaming
-            val md5Result = hydrusRepository.getFileMd5(fileId = file.id)
-
-            if (md5Result.isSuccess) {
-                val md5Hash = md5Result.getOrNull()!!
-                if (md5Hash.isEmpty()) {
-                    _booruScrapeState.value = BooruScrapeState.Error("Failed to calculate MD5 hash.")
+                /*
+                filesize limit for md5 calculation on the fly
+                fallback, calculate MD5 hash by downloading file in streaming memory/bandwidth limit 10MB filesize
+                val sizeLimit = 10 * 1024 * 1024L // 10 MB
+                if (file.size != null && file.size > sizeLimit) {
+                    _booruScrapeState.value = BooruScrapeState.Error("File is too large (${file.size / 1024 / 1024}MB) to calculate MD5. Max allowed is 10MB.")
                     return@launch
                 }
+                */
 
-                // search on booru
-                val booruResult = booruRepository.getTagsForHash(md5 = md5Hash, sha256 = null, source = source)
-                if (booruResult.isSuccess) {
-                    val tags = booruResult.getOrNull()!!
-                    if (tags.isEmpty()) {
-                        _booruScrapeState.value = BooruScrapeState.Error("No tags found in ${source.name} for this file.")
+                // calculate md5 hash by downloading file in streaming
+                val md5Result = hydrusRepository.getFileMd5(fileId = file.id)
+
+                if (md5Result.isSuccess) {
+                    val md5Hash = md5Result.getOrNull()!!
+                    if (md5Hash.isEmpty()) {
+                        _booruScrapeState.value = BooruScrapeState.Error("Failed to calculate MD5 hash.")
+                        return@launch
+                    }
+
+                    // search on booru
+                    val booruResult = booruRepository.getTagsForHash(md5 = md5Hash, sha256 = null, source = source)
+                    if (booruResult.isSuccess) {
+                        val tags = booruResult.getOrNull()!!
+                        if (tags.isEmpty()) {
+                            _booruScrapeState.value = BooruScrapeState.Error("No tags found in ${source.name} for this file.")
+                        } else {
+                            _booruScrapeState.value = BooruScrapeState.Success(tags)
+                        }
                     } else {
-                        _booruScrapeState.value = BooruScrapeState.Success(tags)
+                        _booruScrapeState.value = BooruScrapeState.Error(booruResult.exceptionOrNull()?.message ?: "Error querying ${source.name}.")
                     }
                 } else {
-                    _booruScrapeState.value = BooruScrapeState.Error(booruResult.exceptionOrNull()?.message ?: "Error querying ${source.name}.")
+                    _booruScrapeState.value = BooruScrapeState.Error(md5Result.exceptionOrNull()?.message ?: "Error downloading file to calculate MD5.")
                 }
-            } else {
-                _booruScrapeState.value = BooruScrapeState.Error(md5Result.exceptionOrNull()?.message ?: "Error downloading file to calculate MD5.")
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _booruScrapeState.value = BooruScrapeState.Error("Network error while scraping tags.")
             }
         }
     }

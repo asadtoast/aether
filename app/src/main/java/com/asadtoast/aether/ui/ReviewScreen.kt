@@ -324,27 +324,6 @@ fun ReviewScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // undo/goback
-                    FloatingActionButton(onClick = {
-                        if (uiState.reviewIndex > 0) {
-                            val previousImage = pagedImages[uiState.reviewIndex - 1]
-                            if (previousImage != null) {
-                                viewModel.undoReview(previousImage.id)
-                            }
-                        }
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
-                    }
-
-                    // skip
-                    FloatingActionButton(
-                        onClick = { viewModel.skipReview() },
-                        containerColor = Color.DarkGray,
-                        contentColor = Color.White
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Skip")
-                    }
-
                     // archive
                     FloatingActionButton(
                         onClick = {
@@ -367,6 +346,27 @@ fun ReviewScreen(
                         contentColor = Color.White
                     ) {
                         Icon(Icons.Default.Delete, contentDescription = "Trash")
+                    }
+
+                    // undo/goback
+                    FloatingActionButton(onClick = {
+                        if (uiState.reviewIndex > 0) {
+                            val previousImage = pagedImages[uiState.reviewIndex - 1]
+                            if (previousImage != null) {
+                                viewModel.undoReview(previousImage.id)
+                            }
+                        }
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
+                    }
+
+                    // skip
+                    FloatingActionButton(
+                        onClick = { viewModel.skipReview() },
+                        containerColor = Color.DarkGray,
+                        contentColor = Color.White
+                    ) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Skip")
                     }
                 }
             }

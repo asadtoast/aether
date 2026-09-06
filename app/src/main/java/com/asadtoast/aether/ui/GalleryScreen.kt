@@ -524,7 +524,7 @@ fun GalleryScreen(
                                             val end = maxOf(selectionPivotIndex!!, index)
                                             val subListIds = mutableListOf<Long>()
                                             for (i in start..end) {
-                                                pagedImages[i]?.let { subListIds.add(it.id) }
+                                                pagedImages.peek(i)?.let { subListIds.add(it.id) }
                                             }
                                             selectedFiles = selectedFiles + subListIds
                                             selectionPivotIndex = index
