@@ -186,7 +186,7 @@ fun FullScreenEditDialog(
                                     capitalization = KeyboardCapitalization.Unspecified,
                                     autoCorrectEnabled = !isPrivacyKeyboardEnabled,
                                     keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
-                                    imeAction = ImeAction.Done
+                                    imeAction = ImeAction.Default
                                 )
                             )
 
@@ -305,7 +305,16 @@ fun FullScreenEditDialog(
                                         autoCorrectEnabled = !isPrivacyKeyboardEnabled,
                                         keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
                                         imeAction = ImeAction.Next
-                                    )
+                                    ),
+                                    trailingIcon = {
+                                        IconButton(onClick = {
+                                            clipboardManager.getText()?.text?.let { pastedText ->
+                                                references[index] = ref.copy(originalTag = pastedText.replace("\n", ""))
+                                            }
+                                        }) {
+                                            Icon(Icons.Default.ContentPaste, "Paste")
+                                        }
+                                    }
                                 )
                             }
                             key(isPrivacyKeyboardEnabled) {
@@ -320,7 +329,16 @@ fun FullScreenEditDialog(
                                         autoCorrectEnabled = !isPrivacyKeyboardEnabled,
                                         keyboardType = if (isPrivacyKeyboardEnabled) KeyboardType.Password else KeyboardType.Text,
                                         imeAction = ImeAction.Next
-                                    )
+                                    ),
+                                    trailingIcon = {
+                                        IconButton(onClick = {
+                                            clipboardManager.getText()?.text?.let { pastedText ->
+                                                references[index] = ref.copy(romaji = pastedText.replace("\n", ""))
+                                            }
+                                        }) {
+                                            Icon(Icons.Default.ContentPaste, "Paste")
+                                        }
+                                    }
                                 )
                             }
                             key(isPrivacyKeyboardEnabled) {
