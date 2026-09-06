@@ -172,6 +172,16 @@ class AetherViewModel(
         _uiState.update { it.copy(searchQuery = query) }
     }
 
+    // alias translation
+    private fun translateTags(tags: List<String>): List<String> {
+        return tags.map { inputTag ->
+            val wikiEntry = wikiRepo.allWikiEntries.value.find { entry ->
+                entry.aliases.any { it.equals(inputTag, ignoreCase = true) }
+            }
+            wikiEntry?.tagName ?: inputTag
+        }.distinct()
+    }
+
     fun fetchGallery(
         tagsText: String = "",
         sortType: Int = _uiState.value.sortType,
@@ -205,12 +215,7 @@ class AetherViewModel(
                     .filter { it.isNotEmpty() }
 
                 // translate aliases to tags
-                val translatedTagsList = baseTagsList.map { inputTag ->
-                    val wikiEntry = wikiRepo.allWikiEntries.value.find { entry ->
-                        entry.aliases.any { it.equals(inputTag, ignoreCase = true) }
-                    }
-                    wikiEntry?.tagName ?: inputTag
-                }
+                val translatedTagsList = translateTags(baseTagsList)
 
                 // trash filter, applied to translated files
                 val tagsList = if (isTrash) {
@@ -264,7 +269,8 @@ class AetherViewModel(
                 val tagsList = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
                 if (tagsList.isEmpty()) return@launch
 
-                val request = AddTagsRequest(file_id = fileId, service_names_to_tags = mapOf("my tags" to tagsList))
+                val translatedTags = translateTags(tagsList)
+                val request = AddTagsRequest(file_id = fileId, service_names_to_tags = mapOf("my tags" to translatedTags))
 
                 val result = hydrusRepository.addTags(request)
                 if (result.isSuccess) {
@@ -288,9 +294,10 @@ class AetherViewModel(
         if (tagsList.isNotEmpty()) {
             viewModelScope.launch {
                 try {
+                    val translatedTags = translateTags(tagsList)
                     val request = AddTagsRequest(
                         file_id = fileId,
-                        service_names_to_tags = mapOf("my tags" to tagsList)
+                        service_names_to_tags = mapOf("my tags" to translatedTags)
                     )
                     val result = hydrusRepository.addTags(request)
                     if (result.isSuccess) {
@@ -311,7 +318,8 @@ class AetherViewModel(
                 val tagsList = tagsToRemove.split(",").map { it.trim() }.filter { it.isNotEmpty() }
                 if (tagsList.isEmpty()) return@launch
 
-                val request = AddTagsRequest(file_id = fileId, service_names_to_actions_to_tags = mapOf("my tags" to mapOf("1" to tagsList)))
+                val translatedTags = translateTags(tagsList)
+                val request = AddTagsRequest(file_id = fileId, service_names_to_actions_to_tags = mapOf("my tags" to mapOf("1" to translatedTags)))
 
                 val result = hydrusRepository.addTags(request)
                 if (result.isSuccess) {
@@ -698,12 +706,14 @@ class AetherViewModel(
                 val tagsList = tagsText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
                 if (tagsList.isEmpty()) return@launch
 
+                val translatedTags = translateTags(tagsList)
+
                 _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = 1, batchProgress = 0) }
 
                 val actionMap = if (isDelete) {
-                    mapOf(targetService to mapOf("1" to tagsList))
+                    mapOf(targetService to mapOf("1" to translatedTags))
                 } else {
-                    mapOf(targetService to mapOf("0" to tagsList))
+                    mapOf(targetService to mapOf("0" to translatedTags))
                 }
 
                 val request = AddTagsRequest(
