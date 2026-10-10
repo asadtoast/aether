@@ -147,6 +147,10 @@ class AetherViewModel(
     private val _currentAlternates = MutableStateFlow<List<String>>(emptyList())
     val currentAlternates = _currentAlternates.asStateFlow()
 
+    // state for viewing a specific alternate file directly
+    private val _viewingAlternate = MutableStateFlow<FileMetadata?>(null)
+    val viewingAlternate = _viewingAlternate.asStateFlow()
+
     // state to define if metadata is being loaded
     private val _isLoadingMetadata = MutableStateFlow(false)
 
@@ -944,6 +948,22 @@ class AetherViewModel(
                 _currentAlternates.value = emptyList()
             }
         }
+    }
+
+    // new functions to fix the recursive alternate thumbnail to file display
+    fun viewAlternate(hash: String) {
+        viewModelScope.launch {
+            val metadataList = fetchAlternatesMetadata(listOf(hash))
+            setViewingAlternate(metadataList.firstOrNull())
+        }
+    }
+
+    fun setViewingAlternate(file: FileMetadata?) {
+        _viewingAlternate.value = file
+    }
+
+    fun clearViewingAlternate() {
+        _viewingAlternate.value = null
     }
 
     // function to upload files via streaming to avoid OOM on large files

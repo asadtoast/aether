@@ -88,6 +88,7 @@ fun FullScreenViewer(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currentAlternates by viewModel.currentAlternates.collectAsState()
+    val alternateFile by viewModel.viewingAlternate.collectAsState()
     val context = LocalContext.current
     val settingsManager = remember { com.asadtoast.aether.data.SettingsManager(context) }
     val apiKey by settingsManager.apiKeyFlow.collectAsState(initial = "")
@@ -130,7 +131,8 @@ fun FullScreenViewer(
         } else null
     }
 
-    val currentFile = getFileAtIndex(pagerState.currentPage)
+    val baseCurrentFile = getFileAtIndex(pagerState.currentPage)
+    val currentFile = if (alternateFile != null) alternateFile else baseCurrentFile
     val settledFileId = getFileAtIndex(pagerState.settledPage)?.id
 
     // ui visibility toggle for fullscreen video
@@ -211,14 +213,20 @@ fun FullScreenViewer(
         }
     }
 
-    BackHandler { onClose() }
+    BackHandler {
+        if (alternateFile != null) {
+            viewModel.clearViewingAlternate()
+        } else {
+            onClose()
+        }
+    }
 
-    LaunchedEffect(settledFileId) {
-        if (settledFileId != null) {
-            viewModel.fetchExistingTagsForImage(settledFileId)
-            val settledFile = getFileAtIndex(pagerState.settledPage)
-            if (settledFile?.hash != null) {
-                viewModel.loadAlternates(settledFile.hash)
+    LaunchedEffect(settledFileId, alternateFile) {
+        val targetFile = alternateFile ?: getFileAtIndex(pagerState.settledPage)
+        if (targetFile != null) {
+            viewModel.fetchExistingTagsForImage(targetFile.id)
+            if (targetFile.hash != null) {
+                viewModel.loadAlternates(targetFile.hash)
             }
             isEditMode = false
             tagsPendingDelete = emptySet()
@@ -235,7 +243,7 @@ fun FullScreenViewer(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
-            userScrollEnabled = isPagerScrollEnabled,
+            userScrollEnabled = isPagerScrollEnabled && alternateFile == null,
             beyondViewportPageCount = 1
         ) { page ->
 
@@ -253,7 +261,9 @@ fun FullScreenViewer(
                 }
             }
 
-            val pageFile = getFileAtIndex(page)
+            val originalPageFile = getFileAtIndex(page)
+            val pageFile = if (isCurrentPage && alternateFile != null) alternateFile else originalPageFile
+
             if (pageFile != null) {
                 val mimeStr = pageFile.mime.lowercase()
                 val mimeInt = mimeStr.toIntOrNull() ?: -1
@@ -373,6 +383,7 @@ fun FullScreenViewer(
                                                         .size(96.dp)
                                                         .clickable {
                                                             onAlternateClick(altHash)
+                                                            viewModel.viewAlternate(altHash)
                                                         }
                                                         .border(
                                                             width = if (isSelected) 2.dp else 0.dp,
@@ -382,7 +393,7 @@ fun FullScreenViewer(
                                                         .clip(RoundedCornerShape(8.dp))
                                                 ) {
                                                     val thumbUrl = pageFile.thumbnailUrl
-                                                        .replace(Regex("file_id=\\d+"), "hash=$altHash")
+                                                        .replace(Regex("(file_id=\\d+|hash=[a-fA-F0-9]+)"), "hash=$altHash")
                                                     coil.compose.AsyncImage(
                                                         model = thumbUrl,
                                                         contentDescription = "Alternate",
@@ -694,7 +705,13 @@ fun FullScreenViewer(
                 exit = fadeOut(),
             ) {
                 Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.4f)) {
-                    IconButton(onClick = onClose) {
+                    IconButton(onClick = {
+                        if (alternateFile != null) {
+                            viewModel.clearViewingAlternate()
+                        } else {
+                            onClose()
+                        }
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "return", tint = Color.White)
                     }
                 }
