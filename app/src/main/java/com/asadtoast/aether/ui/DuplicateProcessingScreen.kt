@@ -7,13 +7,14 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -21,9 +22,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import com.asadtoast.aether.ui.components.FileMetadataOverlay
+import com.asadtoast.aether.utils.ExoPlayerPool
 import com.asadtoast.aether.viewmodel.DuplicateViewModel
 import com.asadtoast.aether.viewmodel.DuplicateAction
 
@@ -107,8 +112,26 @@ fun DuplicateProcessingScreen(
                 contentAlignment = Alignment.TopStart
             ) {
                 // image layers
-                DuplicateImageLayer(currentPair.hash_a, apiKey, serverIp, port, isVisible = !showImageB)
-                DuplicateImageLayer(currentPair.hash_b, apiKey, serverIp, port, isVisible = showImageB)
+                key(currentPair.hash_a) {
+                    DuplicateMediaLayer(
+                        hash = currentPair.hash_a,
+                        mimeType = currentPair.meta_a.mime,
+                        apiKey = apiKey,
+                        serverIp = serverIp,
+                        port = port,
+                        isVisible = !showImageB
+                    )
+                }
+                key(currentPair.hash_b) {
+                    DuplicateMediaLayer(
+                        hash = currentPair.hash_b,
+                        mimeType = currentPair.meta_b.mime,
+                        apiKey = apiKey,
+                        serverIp = serverIp,
+                        port = port,
+                        isVisible = showImageB
+                    )
+                }
 
                 // overlay
                 val activeMeta = if (showImageB) currentPair.meta_b else currentPair.meta_a
@@ -116,7 +139,10 @@ fun DuplicateProcessingScreen(
                     size = activeMeta.size ?: 0L,
                     width = activeMeta.width ?: 0,
                     height = activeMeta.height ?: 0,
+                    duration = activeMeta.duration,
+                    framerate = activeMeta.framerate,
                     tagCount = activeMeta.tagCount,
+                    ext = activeMeta.mime.substringAfterLast('/').lowercase(),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(top = 25.dp, end = 25.dp)
@@ -239,17 +265,124 @@ fun DuplicateProcessingScreen(
     }
 }
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
-fun DuplicateImageLayer(hash: String, apiKey: String, serverIp: String, port: String, isVisible: Boolean) {
-    AsyncImage(
-        model = ImageRequest.Builder(LocalContext.current)
-            .data("http://$serverIp:$port/get_files/file?hash=$hash&Hydrus-Client-API-Access-Key=$apiKey")
-            .crossfade(true)
-            .diskCachePolicy(CachePolicy.ENABLED)
-            .memoryCachePolicy(CachePolicy.ENABLED)
-            .build(),
-        contentDescription = "Duplicate Image",
-        contentScale = ContentScale.Fit,
-        modifier = Modifier.fillMaxSize().alpha(if (isVisible) 1f else 0f)
-    )
+fun DuplicateMediaLayer(
+    hash: String,
+    mimeType: String,
+    apiKey: String,
+    serverIp: String,
+    port: String,
+    isVisible: Boolean
+) {
+    val context = LocalContext.current
+    val fileUrl = "http://$serverIp:$port/get_files/file?hash=$hash&Hydrus-Client-API-Access-Key=$apiKey"
+
+    // video type detection
+    val isVideo = mimeType.startsWith("video/", ignoreCase = true) ||
+            mimeType.contains("mp4", ignoreCase = true) ||
+            mimeType.contains("webm", ignoreCase = true)
+
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        if (isVideo) {
+            val exoPlayer = remember { ExoPlayerPool.getPlayer(context, apiKey) }
+            var isBuffering by remember { mutableStateOf(true) }
+            var playbackError by remember { mutableStateOf(false) }
+
+            DisposableEffect(fileUrl) {
+                val listener = object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        isBuffering = playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_IDLE
+                    }
+
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        playbackError = true
+                        isBuffering = false
+                    }
+                }
+                exoPlayer.addListener(listener)
+
+                val mediaItem = MediaItem.fromUri(fileUrl)
+                exoPlayer.setMediaItem(mediaItem)
+                exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
+                exoPlayer.volume = 0f
+                exoPlayer.prepare()
+                exoPlayer.play()
+
+                onDispose {
+                    exoPlayer.removeListener(listener)
+                    exoPlayer.stop()
+                    exoPlayer.clearMediaItems()
+                    ExoPlayerPool.releasePlayer(exoPlayer)
+                }
+            }
+
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (playbackError) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.graphicsLayer { alpha = if (isVisible) 1f else 0f }
+                    ) {
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.Warning,
+                            contentDescription = "Playback Error",
+                            tint = Color.Red,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Decoding Failed / Unsupported Codec", color = Color.White)
+                    }
+                } else {
+                    AndroidView(
+                        factory = { ctx ->
+                            androidx.media3.ui.AspectRatioFrameLayout(ctx).apply {
+                                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                val textureView = android.view.TextureView(ctx)
+                                addView(textureView, android.view.ViewGroup.LayoutParams(
+                                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                                    android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                                ))
+                                exoPlayer.setVideoTextureView(textureView)
+
+                                exoPlayer.addListener(object : Player.Listener {
+                                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                                        if (videoSize.width == 0 || videoSize.height == 0) return
+                                        setAspectRatio(videoSize.width.toFloat() / videoSize.height.toFloat() * videoSize.pixelWidthHeightRatio)
+                                    }
+                                })
+                            }
+                        },
+                        update = { view ->
+                            view.visibility = if (isVisible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    if (isBuffering && isVisible) {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                }
+            }
+        } else {
+            coil.compose.SubcomposeAsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(fileUrl)
+                    .crossfade(true)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .build(),
+                contentDescription = "Duplicate Media",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = if (isVisible) 1f else 0f },
+                loading = {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                }
+            )
+        }
+    }
 }

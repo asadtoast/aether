@@ -1,3 +1,5 @@
+@file:Suppress("OPT_IN_ARGUMENT_IS_NOT_MARKER")
+
 package com.asadtoast.aether.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -5,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,12 +18,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import androidx.media3.common.util.UnstableApi
 import com.asadtoast.aether.data.SettingsManager
+import com.asadtoast.aether.ui.components.FileMetadataOverlay
 import com.asadtoast.aether.viewmodel.GroupDuplicateUiState
 import com.asadtoast.aether.viewmodel.GroupDuplicateViewModel
 
-@OptIn(ExperimentalFoundationApi::class)
+@androidx.annotation.OptIn(UnstableApi::class)
+@OptIn(ExperimentalFoundationApi::class, UnstableApi::class)
 @Composable
 fun GroupDuplicateProcessingScreen(
     viewModel: GroupDuplicateViewModel,
@@ -116,18 +121,129 @@ fun GroupDuplicateProcessingScreen(
                     group.forEachIndexed { index, file ->
                         if (kotlin.math.abs(index - currentIndex) <= 1) {
                             val hash = file.hash ?: ""
-                            val imageUrl = "http://$serverIp:$port/get_files/file?hash=$hash&Hydrus-Client-API-Access-Key=$apiKey"
+                            key(hash) {
+                                val fileUrl = "http://$serverIp:$port/get_files/file?hash=$hash&Hydrus-Client-API-Access-Key=$apiKey"
+                                val isVideo = file.mime.startsWith("video/")
 
-                            AsyncImage(
-                                model = imageUrl,
-                                contentDescription = "Duped image ${index + 1}",
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer {
-                                        alpha = if (index == currentIndex) 1f else 0f
+                                Box(
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    if (isVideo) {
+                                        var isVideoLoading by remember { mutableStateOf(true) }
+                                        var playerError by remember { mutableStateOf(false) }
+                                        val exoPlayer = remember {
+                                            androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+                                                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+                                                volume = 0f
+                                                addListener(object : androidx.media3.common.Player.Listener {
+                                                    override fun onPlaybackStateChanged(playbackState: Int) {
+                                                        if (playbackState == androidx.media3.common.Player.STATE_READY) {
+                                                            isVideoLoading = false
+                                                        }
+                                                    }
+                                                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                                                        playerError = true
+                                                        isVideoLoading = false
+                                                    }
+                                                })
+                                            }
+                                        }
+
+                                        LaunchedEffect(fileUrl) {
+                                            isVideoLoading = true
+                                            playerError = false
+                                            exoPlayer.setMediaItem(androidx.media3.common.MediaItem.fromUri(fileUrl))
+                                            exoPlayer.prepare()
+                                        }
+
+                                        LaunchedEffect(index, currentIndex) {
+                                            if (index == currentIndex && !playerError) {
+                                                exoPlayer.play()
+                                            } else {
+                                                exoPlayer.pause()
+                                            }
+                                        }
+
+                                        DisposableEffect(Unit) {
+                                            onDispose {
+                                                exoPlayer.release()
+                                            }
+                                        }
+
+                                        Box(modifier = Modifier.fillMaxSize()) {
+                                            if (!playerError) {
+                                                androidx.compose.ui.viewinterop.AndroidView(
+                                                    factory = { ctx ->
+                                                        androidx.media3.ui.PlayerView(ctx).apply {
+                                                            player = exoPlayer
+                                                            useController = false
+                                                            resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                                            isClickable = false
+                                                            isFocusable = false
+                                                        }
+                                                    },
+                                                    update = { view ->
+                                                        view.visibility = if (index == currentIndex) android.view.View.VISIBLE else android.view.View.INVISIBLE
+                                                    },
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .graphicsLayer { alpha = if (index == currentIndex) 1f else 0f }
+                                                ) {
+                                                    coil.compose.SubcomposeAsyncImage(
+                                                        model = fileUrl,
+                                                        contentDescription = "Unsupported video fallback",
+                                                        contentScale = ContentScale.Fit,
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        loading = {
+                                                            Box(
+                                                                modifier = Modifier.fillMaxSize(),
+                                                                contentAlignment = Alignment.Center
+                                                            ) {
+                                                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                                                            }
+                                                        }
+                                                    )
+                                                    Icon(
+                                                        imageVector = androidx.compose.material.icons.Icons.Default.Warning,
+                                                        contentDescription = "Unsupported Codec",
+                                                        tint = Color.Red.copy(alpha = 0.7f),
+                                                        modifier = Modifier
+                                                            .align(Alignment.Center)
+                                                            .size(64.dp)
+                                                    )
+                                                }
+                                            }
+                                            if (isVideoLoading && index == currentIndex) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.align(Alignment.Center),
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        coil.compose.SubcomposeAsyncImage(
+                                            model = fileUrl,
+                                            contentDescription = "Duped image ${index + 1}",
+                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .graphicsLayer { alpha = if (index == currentIndex) 1f else 0f },
+                                            loading = {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                                                }
+                                            }
+                                        )
                                     }
-                            )
+                                }
+                            }
                         }
                     }
 
@@ -195,11 +311,20 @@ fun GroupDuplicateProcessingScreen(
                 }
 
                 val currentFile = group[currentIndex]
+                val calculatedFramerate = if (currentFile.num_frames != null && currentFile.duration != null && currentFile.duration > 0) {
+                    currentFile.num_frames.toDouble() / (currentFile.duration / 1000.0)
+                } else {
+                    null
+                }
+
                 FileMetadataOverlay(
                     size = currentFile.size ?: 0L,
                     width = currentFile.width?.toInt() ?: 0,
                     height = currentFile.height?.toInt() ?: 0,
+                    ext = currentFile.mime.substringAfterLast("/"),
                     tagCount = currentFile.tags?.size ?: 0,
+                    duration = currentFile.duration,
+                    framerate = calculatedFramerate,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .systemBarsPadding()
