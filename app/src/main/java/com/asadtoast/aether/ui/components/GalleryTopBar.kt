@@ -84,7 +84,7 @@ fun GalleryTopBar(
                     showUploadDialog = false
                     selectedUris = emptyList()
                 }) {
-                    Text("Cancel")
+                    Text("Cancel", color = Color.Red)
                 }
             }
         )

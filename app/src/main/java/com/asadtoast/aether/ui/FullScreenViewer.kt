@@ -244,7 +244,10 @@ fun FullScreenViewer(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             userScrollEnabled = isPagerScrollEnabled && alternateFile == null,
-            beyondViewportPageCount = 1
+            beyondViewportPageCount = 1,
+            key = { index ->
+                getFileAtIndex(index)?.id?.let { "id_$it" } ?: "index_$index"
+            }
         ) { page ->
 
             val isCurrentPage = page == pagerState.settledPage
@@ -760,19 +763,30 @@ fun FullScreenViewer(
 
                             if (inTrashMode) {
                                 IconButton(onClick = {
-                                    viewModel.restoreImage(
-                                        fileId = currentFile.id,
-                                        onEmptyList = {
-                                            onClose()
+                                    val fileIdToProcess = currentFile.id
+                                    if (itemCount <= 1) {
+                                        viewModel.restoreImage(fileIdToProcess) { onClose() }
+                                    } else {
+                                        coroutineScope.launch {
+                                            val targetPage = if (pagerState.currentPage < itemCount - 1) pagerState.currentPage + 1 else pagerState.currentPage - 1
+                                            pagerState.animateScrollToPage(targetPage)
+                                            viewModel.restoreImage(fileIdToProcess) {}
                                         }
-                                    )
+                                    }
                                 }) {
                                     Icon(Icons.Default.RestoreFromTrash, "Restore to Inbox", tint = Color.White)
                                 }
                             } else {
                                 IconButton(onClick = {
-                                    viewModel.trashSpecificFile(currentFile.id) {
-                                        onClose()
+                                    val fileIdToProcess = currentFile.id
+                                    if (itemCount <= 1) {
+                                        viewModel.trashSpecificFile(fileIdToProcess) { onClose() }
+                                    } else {
+                                        coroutineScope.launch {
+                                            val targetPage = if (pagerState.currentPage < itemCount - 1) pagerState.currentPage + 1 else pagerState.currentPage - 1
+                                            pagerState.animateScrollToPage(targetPage)
+                                            viewModel.trashSpecificFile(fileIdToProcess) {}
+                                        }
                                     }
                                 }) {
                                     Icon(Icons.Default.Delete, "Send to trash", tint = Color.White)
