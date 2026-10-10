@@ -88,6 +88,7 @@ fun GalleryScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val tagSuggestions by viewModel.tagSuggestions.collectAsState()
+    val selectedImageIndex by viewModel.selectedImageIndex.collectAsState()
 
     // reset scroll position when search query or trash mode changes
     LaunchedEffect(uiState.searchQuery, uiState.isTrashMode) {
@@ -327,7 +328,13 @@ fun GalleryScreen(
         )
     }
 
-    if (uiState.showUploadResults) {
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState()
+    val isGalleryActive = lifecycleState == androidx.lifecycle.Lifecycle.State.RESUMED &&
+            !uiState.isReviewMode &&
+            selectedImageIndex == null
+
+    if (uiState.showUploadResults && isGalleryActive) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissUploadResults() },
             title = { Text("Upload Summary") },
@@ -499,7 +506,7 @@ fun GalleryScreen(
         }
 
         // full-screen blocking overlay for batch processing
-        if (uiState.isProcessingBatch) {
+        if (uiState.isProcessingBatch && isGalleryActive) {
             var batchDots by remember { mutableIntStateOf(0) }
             LaunchedEffect(Unit) {
                 while (isActive) {
