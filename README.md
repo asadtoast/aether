@@ -5,14 +5,18 @@ Aether is an android native app intended to be used with a pre-existing hydrus i
 My idea is to bring the convenience of a processed or in process hydrus gallery to handheld (android only for now...) devices.
 <br><br>
 
-<img width="360" height="732" alt="full_main_gallery" src="https://github.com/user-attachments/assets/db926c75-13ab-4c2e-89b4-f6115f2c2df0" />
+<img width="360" height="732" alt="full_maingallery" src="https://github.com/user-attachments/assets/2825b38c-4ae5-411d-b337-942d2ce3572e" />
 <br><br>
 
 ## Media
 - Supports mostly anything that can be normally played on an android device, be it your jpeg, png, gifs, mp4, webm, webp...
+- Capability to display alternate / related files
+- File tag parsers
 <br>
-<img width="360" height="732" alt="fullscreen_viewer" src="https://github.com/user-attachments/assets/9b03a687-030a-454a-ad98-ec37bef84e96" />
-<img width="360" height="732" alt="viewer_info_panel" src="https://github.com/user-attachments/assets/41d5a971-6a90-4e3e-ba89-d846e5946db4" />
+
+<img width="360" height="732" alt="mp4_media" src="https://github.com/user-attachments/assets/c8779b98-1e86-46d1-b793-fcde6286208a" />
+<img width="360" height="732" alt="viewer_info_panel" src="https://github.com/user-attachments/assets/40cfd49d-a156-4cf8-82b8-847f25caf87e" />
+<img width="360" height="732" alt="viewer_info_panel_2" src="https://github.com/user-attachments/assets/f8064e23-8540-4004-8977-6c304991d846" />
 <br><br>
 
 - Built in hide PSD, PDF and ZIP files
@@ -20,15 +24,23 @@ My idea is to bring the convenience of a processed or in process hydrus gallery 
 - Archive / delete processing of the searched context
 <br>
 
-<img width="360" height="732" alt="archive_delete_example" src="https://github.com/user-attachments/assets/38d9cec2-c75d-45a0-872b-8a1c58217f02" />
+<img width="360" height="732" alt="archive_delete_example" src="https://github.com/user-attachments/assets/6b0aa9bd-220c-4ced-842a-da054d44dd76" />
 <br><br>
   
-- Simple duplicate processing
+- Duplicate processing
 <br>
 
-<img width="360" height="732" alt="dup_processing_a" src="https://github.com/user-attachments/assets/80f47fd5-b10a-4b26-8c2f-f3910b2b9cbd" />
-<img width="360" height="732" alt="dup_processing_b" src="https://github.com/user-attachments/assets/1d4033ce-0e57-4d8c-886a-a45545595747" />
+<img width="360" height="732" alt="dup_processing_A" src="https://github.com/user-attachments/assets/cc528b46-4ed7-4b59-9e99-3990c0bd6097" />
+<img width="360" height="732" alt="dup_processing_B" src="https://github.com/user-attachments/assets/cc0ead44-bf4a-43fc-b827-42e55ae5d8c8" />
 <br><br>
+
+- Group alternates processing
+<br>
+<img width="360" height="732" alt="group_alternate_processing_1" src="https://github.com/user-attachments/assets/9a4e3863-5c48-42c5-bbf5-1fa2c42a94ca" />
+<img width="360" height="732" alt="group_alternate_processing_2" src="https://github.com/user-attachments/assets/7b62cdf2-e36e-4b74-bc99-0067756e0580" />
+<img width="360" height="732" alt="group_alternate_processing_3" src="https://github.com/user-attachments/assets/3ea41aac-6fff-40c1-ae64-62d3793560bd" />
+<br><br>
+
 
 ## Tags
 - Add / remove tags to both individual or multiple selected files
@@ -39,7 +51,8 @@ With bigger galleries containing imports from manual, and multiple other sites, 
 <br>
 
 <img width="360" height="732" alt="tagwiki" src="https://github.com/user-attachments/assets/3159c24a-8e5d-4355-8c14-649cb9942ccb" />
-<img width="360" height="732" alt="tagwiki_details" src="https://github.com/user-attachments/assets/bdb3c326-b7e1-4a7d-8679-7c23e5f91f0f" />
+<img width="360" height="732" alt="tag_details" src="https://github.com/user-attachments/assets/56efffd9-06c7-4674-a1e8-1db1080b4616" />
+
 <br><br>
 
 
