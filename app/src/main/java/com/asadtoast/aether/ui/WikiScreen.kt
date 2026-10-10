@@ -1274,7 +1274,7 @@ fun TagDetailDialog(
                                         color = getNamespaceColor(tag)
                                     )
                                 ) {
-                                    append(tag.substringAfter(":"))
+                                    append(tag)
                                 }
                                 pop()
 

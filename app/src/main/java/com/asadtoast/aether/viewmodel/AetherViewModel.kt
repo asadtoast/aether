@@ -565,13 +565,15 @@ class AetherViewModel(
     }
 
     fun getTagWikiEntity(tagName: String): TagWikiEntity {
-        return allWikiEntries.value.find { it.tagName == tagName }
-            ?: TagWikiEntity(
-                tagName = tagName,
-                description = "",
-                aliases = emptyList(),
-                count = 0
-            )
+        return allWikiEntries.value.find { entry ->
+            entry.tagName.equals(tagName, ignoreCase = true) ||
+                    entry.aliases.any { it.equals(tagName, ignoreCase = true) }
+        } ?: TagWikiEntity(
+            tagName = tagName,
+            description = "",
+            aliases = emptyList(),
+            count = 0
+        )
     }
 
     fun trashMultipleFiles(fileIds: Set<Long>, skipRefresh: Boolean = false) {
