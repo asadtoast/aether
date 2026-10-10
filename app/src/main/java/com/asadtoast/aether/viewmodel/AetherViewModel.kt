@@ -178,10 +178,17 @@ class AetherViewModel(
     // alias translation
     private fun translateTags(tags: List<String>): List<String> {
         return tags.map { inputTag ->
-            val wikiEntry = wikiRepo.allWikiEntries.value.find { entry ->
-                entry.aliases.any { it.equals(inputTag, ignoreCase = true) }
+            val cleanTag = if (inputTag.contains("➔")) {
+                inputTag.substringAfter("➔").trim()
+            } else {
+                inputTag.trim()
             }
-            wikiEntry?.tagName ?: inputTag
+
+            val wikiEntry = wikiRepo.allWikiEntries.value.find { entry ->
+                entry.tagName.equals(cleanTag, ignoreCase = true) ||
+                        entry.aliases.any { it.equals(cleanTag, ignoreCase = true) }
+            }
+            wikiEntry?.tagName ?: cleanTag
         }.distinct()
     }
 
