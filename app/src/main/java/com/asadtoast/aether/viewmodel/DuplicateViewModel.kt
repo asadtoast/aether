@@ -155,7 +155,6 @@ class DuplicateViewModel(
                     val idB = currentPair.meta_b.id
 
                     hydrusRepository.trashFile(fileId = idA)
-
                     hydrusRepository.trashFile(fileId = idB)
 
                 } else {
@@ -163,7 +162,6 @@ class DuplicateViewModel(
                         DuplicateAction.FALSE_POSITIVE -> 1
                         DuplicateAction.ALTERNATES -> 3
                         DuplicateAction.A_IS_BETTER, DuplicateAction.B_IS_BETTER -> 4
-                        else -> throw IllegalStateException()
                     }
 
                     val finalHashA = if (action == DuplicateAction.B_IS_BETTER) currentPair.hash_b else currentPair.hash_a
@@ -174,9 +172,14 @@ class DuplicateViewModel(
                     )
 
                     hydrusRepository.setFileRelationships(request)
+
+                    if (action == DuplicateAction.A_IS_BETTER) {
+                        hydrusRepository.trashFile(fileId = currentPair.meta_b.id)
+                    } else if (action == DuplicateAction.B_IS_BETTER) {
+                        hydrusRepository.trashFile(fileId = currentPair.meta_a.id)
+                    }
                 }
             }
-
 
             historyStack.add(HistoryEntry(currentPair, action))
 
@@ -201,10 +204,8 @@ class DuplicateViewModel(
     fun undoLastAction() {
         if (historyStack.isEmpty()) return
 
-
         val lastEntry = historyStack.removeAt(historyStack.lastIndex)
         val pairToRestore = lastEntry.pair
-
 
         viewModelScope.launch {
             // undo serer action if it wasn't a skip
@@ -226,6 +227,12 @@ class DuplicateViewModel(
                         relationships = listOf(FileRelationship(hash_a = finalHashA, hash_b = finalHashB, relationship = 0, do_default_content_merge = false))
                     )
                     hydrusRepository.setFileRelationships(request)
+
+                    if (lastEntry.actionTaken == DuplicateAction.A_IS_BETTER) {
+                        hydrusRepository.restoreFile(fileId = pairToRestore.meta_b.id)
+                    } else if (lastEntry.actionTaken == DuplicateAction.B_IS_BETTER) {
+                        hydrusRepository.restoreFile(fileId = pairToRestore.meta_a.id)
+                    }
                 }
             }
 
