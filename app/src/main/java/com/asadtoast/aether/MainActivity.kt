@@ -337,11 +337,18 @@ class MainActivity : ComponentActivity() {
                                             },
                                             onSave = { tag, desc, aliases, refs, count ->
                                                 wikiViewModel.saveWikiEntry(tag, desc, aliases, refs, count)
-                                                overlayStack = overlayStack.dropLast(1)
+                                                val updatedEntity = currentOverlay.entity.copy(
+                                                    tagName = tag,
+                                                    description = desc,
+                                                    aliases = aliases,
+                                                    references = refs,
+                                                    count = count
+                                                )
+                                                overlayStack = overlayStack.dropLast(2) + AppOverlay.TagDetails(updatedEntity)
                                             },
                                             onDelete = {
                                                 wikiViewModel.deleteWikiEntry(currentOverlay.entity.tagName)
-                                                overlayStack = overlayStack.dropLast(1)
+                                                overlayStack = overlayStack.dropLast(2)
                                             }
                                         )
                                     }
