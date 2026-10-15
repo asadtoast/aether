@@ -85,7 +85,7 @@ class AetherViewModel(
     val pagedImages: Flow<PagingData<FileMetadata>> = _searchTrigger
         .flatMapLatest {
             if (currentActiveIds.isEmpty()) {
-                flowOf(PagingData.empty())
+                flowOf(PagingData.empty<FileMetadata>())
             } else {
                 val pagerFlow = Pager(
                     config = PagingConfig(pageSize = 30, enablePlaceholders = false),
@@ -241,7 +241,7 @@ class AetherViewModel(
                     translatedTagsList
                 }
 
-                val targetService = if (isTrash) "trash" else "my files"
+                val targetService = if (isTrash) "trash" else null
 
                 // network request
                 val searchResponse = hydrusRepository.searchFiles(

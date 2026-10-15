@@ -10,7 +10,7 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 object HydrusNetwork {
 
     private val logging = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BASIC
+        level = HttpLoggingInterceptor.Level.BODY
     }
 
     private val client = OkHttpClient.Builder()

@@ -56,10 +56,11 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
     }
 
     suspend fun searchFiles(
-        tags: List<String>, sortType: Int? = null, sortAsc: Boolean? = null, service: String
+        tags: List<String>, sortType: Int? = null, sortAsc: Boolean? = null, service: String? = null
     ) = safeApiCall {
         val tagsJson = org.json.JSONArray(tags).toString()
-        getApi().searchFiles(getApiKey(), tagsJson, sortType, sortAsc, service)
+        val fileDomain = service ?: settingsManager.fileDomainFlow.first()
+        getApi().searchFiles(getApiKey(), tagsJson, sortType, sortAsc, fileDomain)
     }
 
     suspend fun getFileMetadata(
@@ -88,18 +89,20 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
         getApi().addTags(getApiKey(), request)
     }
 
-    suspend fun searchTags(search: String) = safeApiCall {
-        val response = getApi().searchTags(getApiKey(), search)
+    suspend fun searchTags(search: String, tagServiceName: String = "all known tags") = safeApiCall {
+        val response = getApi().searchTags(getApiKey(), search, tagServiceName)
         if (response.isSuccessful) response.body() else throw Exception("Tag search failed: ${response.code()}")
     }
 
     suspend fun getPotentialPairs(maxHammingDistance: Int? = null) = safeApiCall {
-        val response = getApi().getPotentialPairs(getApiKey(), maxHammingDistance = maxHammingDistance)
+        val searchDomain = settingsManager.fileDomainFlow.first()
+        val response = getApi().getPotentialPairs(getApiKey(), searchDomain = searchDomain, maxHammingDistance = maxHammingDistance)
         if (response.isSuccessful) response.body() else throw Exception("Pairs fetch failed: ${response.code()}")
     }
 
     suspend fun getPotentialPairsCount(maxHammingDistance: Int? = null) = safeApiCall {
-        val response = getApi().getPotentialsCount(getApiKey(), maxHammingDistance = maxHammingDistance)
+        val searchDomain = settingsManager.fileDomainFlow.first()
+        val response = getApi().getPotentialsCount(getApiKey(), searchDomain = searchDomain, maxHammingDistance = maxHammingDistance)
         if (response.isSuccessful) response.body() else throw Exception("Pairs count fetch failed: ${response.code()}")
     }
 

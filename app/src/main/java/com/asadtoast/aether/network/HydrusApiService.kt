@@ -28,6 +28,7 @@ interface HydrusApiService {
         @Query("file_sort_type") sortType: Int? = null,
         @Query("file_sort_asc") sortAsc: Boolean? = null,
         @Query("file_service_name") fileServiceName: String,
+        @Query("tag_service_name") tagServiceName: String? = null,
         @Query("return_file_ids") returnFileIds: Boolean = true
     ): SearchFilesResponse
 
@@ -94,7 +95,8 @@ interface HydrusApiService {
     @GET("add_tags/search_tags")
     suspend fun searchTags(
         @Header("Hydrus-Client-API-Access-Key") apiKey: String,
-        @Query("search") search: String
+        @Query("search") search: String,
+        @Query("tag_service_name") tagServiceName: String? = null
     ): Response<SearchTagsResponse>
 
     @GET("manage_file_relationships/get_potential_pairs")

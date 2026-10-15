@@ -54,6 +54,8 @@ fun SettingsScreen(
     // read data to autofill fields
     val currentIp by settingsManager.serverIpFlow.collectAsState(initial = "127.0.0.1")
     val currentApiKey by settingsManager.apiKeyFlow.collectAsState(initial = "")
+    val currentFileDomain by settingsManager.fileDomainFlow.collectAsState(initial = "my files")
+    val currentTagDomain by settingsManager.tagDomainFlow.collectAsState(initial = "my tags")
 
     // dark mode value
     val isDarkMode by settingsManager.darkModeFlow.collectAsState(initial = false)
@@ -72,6 +74,8 @@ fun SettingsScreen(
     var ipInput by remember(currentIp) { mutableStateOf(currentIp.ifEmpty { "127.0.0.1" }) }
     var portInput by remember { mutableStateOf("45869") }
     var apiKeyInput by remember(currentApiKey) { mutableStateOf(currentApiKey) }
+    var fileDomainInput by remember(currentFileDomain) { mutableStateOf(currentFileDomain) }
+    var tagDomainInput by remember(currentTagDomain) { mutableStateOf(currentTagDomain) }
 
     var connectionStatus by remember { mutableStateOf("") }
     var isTesting by remember { mutableStateOf(false) }
@@ -148,6 +152,34 @@ fun SettingsScreen(
                 autoCorrectEnabled = false,
                 keyboardType = KeyboardType.Password,
                 imeAction = ImeAction.Next
+            )
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = fileDomainInput,
+            onValueChange = { fileDomainInput = it },
+            label = { Text("File Domain") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Unspecified,
+                autoCorrectEnabled = false,
+                imeAction = ImeAction.Next
+            )
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = tagDomainInput,
+            onValueChange = { tagDomainInput = it },
+            label = { Text("Tag Domain") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Unspecified,
+                autoCorrectEnabled = false,
+                imeAction = ImeAction.Done
             )
         )
 
@@ -376,6 +408,7 @@ fun SettingsScreen(
         )
 
         Spacer(modifier = Modifier.height(32.dp))
+
         // save and exit button
         Button(
             onClick = {
@@ -385,6 +418,8 @@ fun SettingsScreen(
                         serverIp = ipInput,
                         port = portInput
                     )
+                    settingsManager.saveFileDomain(fileDomainInput)
+                    settingsManager.saveTagDomain(tagDomainInput)
                     onSettingsSaved()
                 }
             },
