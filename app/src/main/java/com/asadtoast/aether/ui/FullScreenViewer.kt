@@ -962,11 +962,12 @@ fun FullScreenViewer(
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Button(
                                         onClick = {
-                                            selectedTags.forEach { tag ->
-                                                val tagString = if (tag.namespace.isNotEmpty() && tag.namespace != "general") "${tag.namespace}:${tag.name}" else tag.name
-                                                viewModel.addTagsToImage(currentFile.id, tagString)
+                                            val combinedTags = selectedTags.joinToString(", ") { tag ->
+                                                if (tag.namespace.isNotEmpty() && tag.namespace != "general") "${tag.namespace}:${tag.name}" else tag.name
                                             }
-                                            viewModel.fetchExistingTagsForImage(currentFile.id)
+                                            if (combinedTags.isNotEmpty()) {
+                                                viewModel.addTagsToImage(currentFile.id, combinedTags)
+                                            }
                                             showBooruDialog = false
                                             selectedSource = null
                                             viewModel.resetBooruState()

@@ -11,6 +11,7 @@ import com.asadtoast.aether.data.SettingsManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.collections.flatten
@@ -43,12 +44,19 @@ class DuplicateViewModel(
     private var allPendingPairs = mutableListOf<List<String>>()
 
     private var lastUsedDistance: Int? = null
+    private var lastUsedDomain: String? = null
 
     init {
         viewModelScope.launch {
-            settingsManager.maxHammingDistanceFlow.collect { distance ->
-                if (lastUsedDistance != distance) {
+            combine(
+                settingsManager.maxHammingDistanceFlow,
+                settingsManager.fileDomainFlow
+            ) { distance, domain ->
+                Pair(distance, domain)
+            }.collect { (distance, domain) ->
+                if (lastUsedDistance != distance || lastUsedDomain != domain) {
                     lastUsedDistance = distance
+                    lastUsedDomain = domain
                     historyStack.clear()
                     allPendingPairs.clear()
                     _duplicatePairs.value = emptyList()
@@ -66,7 +74,9 @@ class DuplicateViewModel(
 
         viewModelScope.launch {
             val distance = settingsManager.maxHammingDistanceFlow.first()
+            val domain = settingsManager.fileDomainFlow.first()
             lastUsedDistance = distance
+            lastUsedDomain = domain
 
             val realCount = hydrusRepository.getPotentialPairsCount(distance).getOrNull()?.potential_duplicates_count
 

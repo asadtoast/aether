@@ -8,6 +8,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -16,6 +18,7 @@ import java.io.File
 @JsonClass(generateAdapter = true)
 data class TagWikiEntity(
     val tagName: String,
+    val domain: String = "my tags",
     val description: String = "",
     val aliases: List<String> = emptyList(),
     val references: List<WikiReference> = emptyList(),
@@ -37,7 +40,7 @@ data class TagWikiBackup(
     val mutedTags: List<String> = emptyList()
 )
 
-class WikiRepository(context: Context) {
+class WikiRepository(context: Context, private val settingsManager: SettingsManager) {
 
     private val file = File(context.filesDir, "hydrus_wiki.json")
     private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
@@ -45,7 +48,9 @@ class WikiRepository(context: Context) {
     private val backupAdapter = moshi.adapter(TagWikiBackup::class.java)
 
     private val _allWikiEntries = MutableStateFlow<List<TagWikiEntity>>(emptyList())
-    val allWikiEntries = _allWikiEntries.asStateFlow()
+    val allWikiEntries = combine(_allWikiEntries, settingsManager.tagDomainFlow) { entries, domain ->
+        entries.filter { it.domain == domain }
+    }
 
     private val _mutedTags = MutableStateFlow<Set<String>>(emptySet())
     val mutedTags = _mutedTags.asStateFlow()
@@ -72,8 +77,10 @@ class WikiRepository(context: Context) {
     }
 
     suspend fun saveWikiEntry(tagName: String, description: String, aliases: List<String>, references: List<WikiReference>, count: Long) {
+        val currentDomain = settingsManager.tagDomainFlow.first()
         val newEntry = TagWikiEntity(
             tagName = tagName.lowercase().trim(),
+            domain = currentDomain,
             description = description.trim(),
             aliases = aliases.map { it.trim() }.filter { it.isNotEmpty() },
             references = references.filter { it.siteName.isNotBlank() || it.url.isNotBlank() },
@@ -82,7 +89,7 @@ class WikiRepository(context: Context) {
 
         mutex.withLock {
             val currentList = _allWikiEntries.value.toMutableList()
-            currentList.removeAll { it.tagName == newEntry.tagName }
+            currentList.removeAll { it.tagName == newEntry.tagName && it.domain == currentDomain }
             currentList.add(newEntry)
             currentList.sortBy { it.tagName }
             updateStateAndSaveUnsafe(entries = currentList)
@@ -90,9 +97,10 @@ class WikiRepository(context: Context) {
     }
 
     suspend fun deleteWikiEntry(tagName: String) {
+        val currentDomain = settingsManager.tagDomainFlow.first()
         mutex.withLock {
             val currentList = _allWikiEntries.value.toMutableList()
-            currentList.removeAll { it.tagName == tagName }
+            currentList.removeAll { it.tagName == tagName && it.domain == currentDomain }
             updateStateAndSaveUnsafe(entries = currentList)
         }
     }
@@ -116,15 +124,18 @@ class WikiRepository(context: Context) {
     }
 
     suspend fun syncTagsFromServer(rawApiTags: List<TagSuggestion>) {
+        val currentDomain = settingsManager.tagDomainFlow.first()
         val apiTags = rawApiTags.distinctBy { it.value }
         val incomingTagsMap = apiTags.associateBy { it.value }
 
         mutex.withLock {
-            val currentList = _allWikiEntries.value.distinctBy { it.tagName }.toMutableList()
+            val currentList = _allWikiEntries.value.toMutableList()
             var changed = false
 
             for (i in currentList.indices) {
                 val existing = currentList[i]
+                if (existing.domain != currentDomain) continue
+
                 val incoming = incomingTagsMap[existing.tagName]
 
                 val updatedAliases = if (existing.tagName.startsWith("system:") && existing.aliases.isEmpty()) {
@@ -147,9 +158,9 @@ class WikiRepository(context: Context) {
                 }
             }
 
-            val existingNames = currentList.map { it.tagName }.toSet()
+            val existingNamesInDomain = currentList.filter { it.domain == currentDomain }.map { it.tagName }.toSet()
             for (apiTag in apiTags) {
-                if (!existingNames.contains(apiTag.value)) {
+                if (!existingNamesInDomain.contains(apiTag.value)) {
                     val defaultAliases = if (apiTag.value.startsWith("system:")) {
                         listOf(apiTag.value.removePrefix("system:"))
                     } else {
@@ -158,6 +169,7 @@ class WikiRepository(context: Context) {
 
                     currentList.add(TagWikiEntity(
                         tagName = apiTag.value,
+                        domain = currentDomain,
                         count = apiTag.count.toLong(),
                         aliases = defaultAliases
                     ))
@@ -182,7 +194,7 @@ class WikiRepository(context: Context) {
 
                 if (merge) {
                     importedBackup.wikiEntries.forEach { newEntry ->
-                        val existingIndex = currentList.indexOfFirst { it.tagName == newEntry.tagName }
+                        val existingIndex = currentList.indexOfFirst { it.tagName == newEntry.tagName && it.domain == newEntry.domain }
                         if (existingIndex != -1) {
                             currentList[existingIndex] = newEntry.copy(count = currentList[existingIndex].count)
                         } else {
@@ -205,12 +217,13 @@ class WikiRepository(context: Context) {
     }
 
     suspend fun updateExistingTagCounts(apiTags: List<TagSuggestion>) {
+        val currentDomain = settingsManager.tagDomainFlow.first()
         mutex.withLock {
             val currentList = _allWikiEntries.value.toMutableList()
             var changed = false
 
             for (apiTag in apiTags) {
-                val existingIndex = currentList.indexOfFirst { it.tagName == apiTag.value }
+                val existingIndex = currentList.indexOfFirst { it.tagName == apiTag.value && it.domain == currentDomain }
                 if (existingIndex != -1) {
                     val existing = currentList[existingIndex]
                     val newCount = apiTag.count.toLong()

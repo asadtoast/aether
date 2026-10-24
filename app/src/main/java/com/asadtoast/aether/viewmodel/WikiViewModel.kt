@@ -17,8 +17,11 @@ import com.asadtoast.aether.data.WikiRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.milliseconds
@@ -30,7 +33,11 @@ class WikiViewModel(
     private val backupManager: BackupManager
 ) : ViewModel() {
 
-    val allWikiEntries = wikiRepository.allWikiEntries
+    val allWikiEntries = wikiRepository.allWikiEntries.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
     val mutedTags = wikiRepository.mutedTags
 
     // UI states
@@ -134,7 +141,7 @@ class WikiViewModel(
 
                     val systemTagsToFetch = listOf("system:inbox", "system:archive", "system:everything", "system:untagged")
                     for (sysTag in systemTagsToFetch) {
-                        val result = hydrusRepository.searchFiles(tags = listOf(sysTag), service = "my files")
+                        val result = hydrusRepository.searchFiles(tags = listOf(sysTag))
                         if (result.isSuccess) {
                             collectedTags.add(TagSuggestion(sysTag, result.getOrNull()?.file_ids?.size?.toFloat() ?: 0f))
                         } else importingError = true
@@ -153,7 +160,8 @@ class WikiViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             isCheckingBackup = true
             val backupTag = "app_backup:tag_wiki"
-            hydrusRepository.searchFiles(tags = listOf(backupTag), service = "my files")
+            val backupDomain = settingsManager.backupDestinationDomainFlow.first()
+            hydrusRepository.searchFiles(tags = listOf(backupTag), service = backupDomain)
                 .onSuccess { response ->
                     if (response.file_ids.isNotEmpty()) {
                         hydrusRepository.getFileMetadata(fileIds = response.file_ids).onSuccess { metaResponse ->
@@ -168,25 +176,22 @@ class WikiViewModel(
         }
     }
 
-
-
-
-
-
     // manual backup
     fun forceManualBackup() {
         viewModelScope.launch(Dispatchers.IO) {
             isBackupProcessing = true
             try {
                 val backupTag = "app_backup:tag_wiki"
-                hydrusRepository.searchFiles(tags = listOf(backupTag), service = "my files").onSuccess { res ->
-                    res.file_ids.forEach { hydrusRepository.trashFile(fileId = it) }
+                val backupDomain = settingsManager.backupDestinationDomainFlow.first()
+                hydrusRepository.searchFiles(tags = listOf(backupTag), service = backupDomain).onSuccess { res ->
+                    res.file_ids.forEach { hydrusRepository.trashFile(fileId = it, fileDomainOverride = backupDomain) }
                 }
 
                 backupManager.createBackupZip()?.let { requestBody ->
-                    hydrusRepository.addFile(requestBody).onSuccess { addResponse ->
-                        hydrusRepository.restoreFile(hash = addResponse.hash)
-                        val tagRequest = AddTagsRequest(hash = addResponse.hash, service_names_to_tags = mapOf("my tags" to listOf(backupTag)))
+                    hydrusRepository.addFile(requestBody, fileDomainOverride = backupDomain).onSuccess { addResponse ->
+                        hydrusRepository.restoreFile(hash = addResponse.hash, fileDomainOverride = backupDomain)
+                        val tagDomain = settingsManager.tagDomainFlow.first()
+                        val tagRequest = AddTagsRequest(hash = addResponse.hash, service_names_to_tags = mapOf(tagDomain to listOf(backupTag)))
                         hydrusRepository.addTags(tagRequest)
                         checkForBackup()
                     }
@@ -262,7 +267,7 @@ class WikiViewModel(
     fun fetchExampleImagesForTag(tagName: String) {
         viewModelScope.launch(Dispatchers.IO) {
             _exampleImages.value = emptyList()
-            hydrusRepository.searchFiles(tags = listOf(tagName), service = "my files")
+            hydrusRepository.searchFiles(tags = listOf(tagName))
                 .onSuccess { searchResponse ->
                     val topIds = searchResponse.file_ids.take(4)
                     if (topIds.isNotEmpty()) {

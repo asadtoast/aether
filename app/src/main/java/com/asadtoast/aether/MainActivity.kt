@@ -172,6 +172,34 @@ class MainActivity : ComponentActivity() {
                                         onTestConnection = { ip, port, apiKey ->
                                             hydrusRepository.testConnection(ip, port, apiKey)
                                         },
+                                        onFetchDomains = {
+                                            val result = hydrusRepository.getServices()
+                                            val tagDomains = mutableListOf<String>()
+                                            val fileDomains = mutableListOf<String>()
+                                            val backupDomains = mutableListOf<String>()
+
+                                            result.getOrNull()?.body()?.let { response ->
+                                                // domain name combination based on service category keys
+                                                response.services_v2?.forEach { service ->
+                                                    val name = service.name ?: return@forEach
+                                                    val type = service.type ?: return@forEach
+
+                                                    if (type == 5) {
+                                                        tagDomains.add(name)
+                                                    }
+                                                    if (type == 2) {
+                                                        fileDomains.add(name)
+                                                        backupDomains.add(name)
+                                                    }
+                                                }
+                                            }
+
+                                            mapOf(
+                                                "tags" to tagDomains,
+                                                "files" to fileDomains,
+                                                "backups" to backupDomains
+                                            )
+                                        },
                                         onSettingsSaved = {
                                             // navigate to gallery and remove settings from history
                                             navController.navigate("gallery") {

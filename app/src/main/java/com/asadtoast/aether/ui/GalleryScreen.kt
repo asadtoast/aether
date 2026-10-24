@@ -302,7 +302,7 @@ fun GalleryScreen(
                                 fileIds = selectedFiles,
                                 tagsText = tagsInputState.text,
                                 isDelete = isDeleteAction,
-                                targetService = "my tags"
+                                targetService = ""
                             )
                         }
                         showTagDialog = false

@@ -23,7 +23,6 @@ class SettingsManager(private val context: Context) {
         val PORT_KEY = stringPreferencesKey("server_port")
         val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
         val GRID_COLUMNS_KEY = intPreferencesKey("grid_columns")
-
         val HIDE_PDF_KEY = booleanPreferencesKey("hide_pdf")
         val HIDE_PSD_KEY = booleanPreferencesKey("hide_psd")
         val HIDE_ZIP_KEY = booleanPreferencesKey("hide_zip")
@@ -34,6 +33,7 @@ class SettingsManager(private val context: Context) {
         val MAX_HAMMING_DISTANCE_KEY = intPreferencesKey("max_hamming_distance")
         val FILE_DOMAIN_KEY = stringPreferencesKey("file_domain")
         val TAG_DOMAIN_KEY = stringPreferencesKey("tag_domain")
+        val BACKUP_DESTINATION_DOMAIN_KEY = stringPreferencesKey("backup_destination_domain")
         val DEFAULT_CATEGORIES = setOf("creator", "artist", "series", "copyright", "character", "general", "system", "meta")
     }
 
@@ -80,6 +80,9 @@ class SettingsManager(private val context: Context) {
     suspend fun saveTagDomain(domain: String) {
         context.dataStore.edit { it[TAG_DOMAIN_KEY] = domain }
     }
+    suspend fun saveBackupDestinationDomain(domain: String) {
+        context.dataStore.edit { it[BACKUP_DESTINATION_DOMAIN_KEY] = domain }
+    }
 
     val apiKeyFlow: Flow<String> = context.dataStore.data.map { it[API_KEY] ?: "" }
     val serverIpFlow: Flow<String> = context.dataStore.data.map { it[SERVER_IP] ?: "127.0.0.1" }
@@ -110,5 +113,6 @@ class SettingsManager(private val context: Context) {
     val privacyKeyboardFlow: Flow<Boolean> = context.dataStore.data.map { it[PRIVACY_KEYBOARD_KEY] ?: true }
     val maxHammingDistanceFlow: Flow<Int> = context.dataStore.data.map { it[MAX_HAMMING_DISTANCE_KEY] ?: 4 }
     val fileDomainFlow: Flow<String> = context.dataStore.data.map { it[FILE_DOMAIN_KEY] ?: "my files" }
-    val tagDomainFlow: Flow<String> = context.dataStore.data.map { it[TAG_DOMAIN_KEY] ?: "all known tags" }
+    val tagDomainFlow: Flow<String> = context.dataStore.data.map { it[TAG_DOMAIN_KEY] ?: "my tags" }
+    val backupDestinationDomainFlow: Flow<String> = context.dataStore.data.map { it[BACKUP_DESTINATION_DOMAIN_KEY] ?: "my files" }
 }

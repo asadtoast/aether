@@ -16,12 +16,17 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -44,10 +49,12 @@ import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     settingsManager: SettingsManager,
     onTestConnection: suspend (ip: String, port: String, apiKey: String) -> Boolean,
+    onFetchDomains: suspend () -> Map<String, List<String>>,
     onSettingsSaved: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -56,6 +63,7 @@ fun SettingsScreen(
     val currentApiKey by settingsManager.apiKeyFlow.collectAsState(initial = "")
     val currentFileDomain by settingsManager.fileDomainFlow.collectAsState(initial = "my files")
     val currentTagDomain by settingsManager.tagDomainFlow.collectAsState(initial = "my tags")
+    val currentBackupDomain by settingsManager.backupDestinationDomainFlow.collectAsState(initial = "my files")
 
     // dark mode value
     val isDarkMode by settingsManager.darkModeFlow.collectAsState(initial = false)
@@ -76,6 +84,22 @@ fun SettingsScreen(
     var apiKeyInput by remember(currentApiKey) { mutableStateOf(currentApiKey) }
     var fileDomainInput by remember(currentFileDomain) { mutableStateOf(currentFileDomain) }
     var tagDomainInput by remember(currentTagDomain) { mutableStateOf(currentTagDomain) }
+    var backupDomainInput by remember(currentBackupDomain) { mutableStateOf(currentBackupDomain) }
+
+    var fetchedFiles by remember { mutableStateOf<List<String>>(emptyList()) }
+    var fetchedTags by remember { mutableStateOf<List<String>>(emptyList()) }
+    var fetchedBackups by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val domains = onFetchDomains()
+            fetchedFiles = domains["files"] ?: emptyList()
+            fetchedTags = domains["tags"] ?: emptyList()
+            fetchedBackups = domains["backups"] ?: emptyList()
+        } catch (e: Exception) {
+            // Ignore on init
+        }
+    }
 
     var connectionStatus by remember { mutableStateOf("") }
     var isTesting by remember { mutableStateOf(false) }
@@ -157,34 +181,6 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(
-            value = fileDomainInput,
-            onValueChange = { fileDomainInput = it },
-            label = { Text("File Domain") },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.Unspecified,
-                autoCorrectEnabled = false,
-                imeAction = ImeAction.Next
-            )
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = tagDomainInput,
-            onValueChange = { tagDomainInput = it },
-            label = { Text("Tag Domain") },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.Unspecified,
-                autoCorrectEnabled = false,
-                imeAction = ImeAction.Done
-            )
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
         // test connection button
         Button(
             onClick = {
@@ -208,6 +204,14 @@ fun SettingsScreen(
 
                     try {
                         val success = onTestConnection(ipInput, portInput, apiKeyInput)
+                        if (success) {
+                            try {
+                                val domains = onFetchDomains()
+                                fetchedFiles = domains["files"] ?: emptyList()
+                                fetchedTags = domains["tags"] ?: emptyList()
+                                fetchedBackups = domains["backups"] ?: emptyList()
+                            } catch (_: Exception) {}
+                        }
                         animJob.cancel()
                         connectionStatus = if (success) "Success!" else "Error: check settings"
 
@@ -242,7 +246,57 @@ fun SettingsScreen(
         }
 
 
+        // domain dropdowns
+        Text(
+            text = "File and tag domains",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+
+        val fileDomainOptions = remember(fetchedFiles) {
+            (listOf("my files") + fetchedFiles).distinct()
+        }
+        DomainDropdown(
+            label = "File Domain",
+            currentValue = fileDomainInput,
+            onValueChange = { fileDomainInput = it },
+            options = fileDomainOptions,
+            imeAction = ImeAction.Next,
+            readOnly = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val tagDomainOptions = remember(fetchedTags) {
+            (listOf("my tags") + fetchedTags).distinct()
+        }
+        DomainDropdown(
+            label = "Tag Domain",
+            currentValue = tagDomainInput,
+            onValueChange = { tagDomainInput = it },
+            options = tagDomainOptions,
+            imeAction = ImeAction.Next,
+            readOnly = true
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val backupDomainOptions = remember(fetchedBackups) {
+            (listOf("my files") + fetchedBackups).distinct()
+        }
+
+        DomainDropdown(
+            label = "Backup Domain",
+            currentValue = backupDomainInput,
+            onValueChange = { backupDomainInput = it },
+            options = backupDomainOptions,
+            imeAction = ImeAction.Done,
+            readOnly = true
+        )
         Spacer(modifier = Modifier.height(32.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -420,12 +474,62 @@ fun SettingsScreen(
                     )
                     settingsManager.saveFileDomain(fileDomainInput)
                     settingsManager.saveTagDomain(tagDomainInput)
+                    settingsManager.saveBackupDestinationDomain(backupDomainInput)
                     onSettingsSaved()
                 }
             },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Save and exit")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DomainDropdown(
+    label: String,
+    currentValue: String,
+    onValueChange: (String) -> Unit,
+    options: List<String>,
+    imeAction: ImeAction,
+    readOnly: Boolean = false
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it }
+    ) {
+        OutlinedTextField(
+            value = currentValue,
+            onValueChange = onValueChange,
+            readOnly = readOnly,
+            label = { Text(label) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Unspecified,
+                autoCorrectEnabled = false,
+                imeAction = imeAction
+            )
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { selectionOption ->
+                DropdownMenuItem(
+                    text = { Text(selectionOption) },
+                    onClick = {
+                        onValueChange(selectionOption)
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }

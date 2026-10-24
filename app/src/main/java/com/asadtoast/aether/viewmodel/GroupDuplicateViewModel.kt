@@ -10,6 +10,8 @@ import com.asadtoast.aether.data.SettingsManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -37,7 +39,19 @@ class GroupDuplicateViewModel(
     private val seenGroups = mutableSetOf<Set<String>>()
 
     init {
-        loadGroups()
+        viewModelScope.launch {
+            combine(
+                settingsManager.maxHammingDistanceFlow,
+                settingsManager.fileDomainFlow
+            ) { distance, domain ->
+                Pair(distance, domain)
+            }.collectLatest {
+                allGroups = emptyList()
+                currentIndex = 0
+                seenGroups.clear()
+                loadGroups()
+            }
+        }
     }
 
     private fun loadGroups() {

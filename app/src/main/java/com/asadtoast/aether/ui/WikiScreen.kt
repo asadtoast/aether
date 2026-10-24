@@ -430,8 +430,8 @@ fun WikiScreen(
     onOpenTagDetail: (TagWikiEntity) -> Unit
 ) {
     // network/database flows
-    val allWikiEntries by wikiViewModel.allWikiEntries.collectAsState()
-    val mutedTags by wikiViewModel.mutedTags.collectAsState()
+    val allWikiEntries by wikiViewModel.allWikiEntries.collectAsState(initial = emptyList())
+    val mutedTags by wikiViewModel.mutedTags.collectAsState(initial = emptySet())
     val tagSuggestions by wikiViewModel.tagSuggestions.collectAsState()
     val latestBackup by wikiViewModel.latestBackup.collectAsState()
 
@@ -1092,7 +1092,7 @@ fun TagDetailDialog(
     val uriHandler = LocalUriHandler.current
     val previewFiles by wikiViewModel.exampleImages.collectAsState()
 
-    val allEntries by wikiViewModel.allWikiEntries.collectAsState()
+    val allEntries by wikiViewModel.allWikiEntries.collectAsState(initial = emptyList())
     val currentEntry = allEntries.find { it.tagName == entryDetail.tagName } ?: entryDetail
 
     LaunchedEffect(currentEntry.tagName) {

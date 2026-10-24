@@ -32,6 +32,9 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.filter
 import com.asadtoast.aether.data.HydrusPagingSource
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
@@ -159,7 +162,11 @@ class AetherViewModel(
     private var batchJob: kotlinx.coroutines.Job? = null
 
     // database engine
-    val allWikiEntries = wikiRepo.allWikiEntries
+    val allWikiEntries = wikiRepo.allWikiEntries.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = emptyList()
+    )
 
     init {
         viewModelScope.launch { settingsManager.hidePdfFlow.collect { _hidePdf.value = it } }
@@ -167,6 +174,21 @@ class AetherViewModel(
         viewModelScope.launch { settingsManager.hideZipFlow.collect { _hideZip.value = it } }
         viewModelScope.launch { settingsManager.hideVideosFlow.collect { _hideVideos.value = it } }
         viewModelScope.launch { settingsManager.gifAutoLoopFlow.collect { loop -> _uiState.update { it.copy(gifAutoLoop = loop) } } }
+
+        viewModelScope.launch {
+            var isFirstLoad = true
+            combine(settingsManager.fileDomainFlow, settingsManager.tagDomainFlow) { fileDomain, tagDomain ->
+                fileDomain to tagDomain
+            }.collect {
+                if (isFirstLoad) {
+                    isFirstLoad = false
+                } else {
+                    if (lastSearchQuery.isNotEmpty() || _uiState.value.isTrashMode) {
+                        fetchGallery(tagsText = lastSearchQuery, isTrash = _uiState.value.isTrashMode)
+                    }
+                }
+            }
+        }
     }
 
 
@@ -188,14 +210,13 @@ class AetherViewModel(
                 inputTag.trim()
             }
 
-            val wikiEntry = wikiRepo.allWikiEntries.value.find { entry ->
+            val wikiEntry = allWikiEntries.value.find { entry ->
                 entry.tagName.equals(cleanTag, ignoreCase = true) ||
                         entry.aliases.any { it.equals(cleanTag, ignoreCase = true) }
             }
             wikiEntry?.tagName ?: cleanTag
         }.distinct()
     }
-
     fun fetchGallery(
         tagsText: String = "",
         sortType: Int = _uiState.value.sortType,
@@ -284,7 +305,8 @@ class AetherViewModel(
                 if (tagsList.isEmpty()) return@launch
 
                 val translatedTags = translateTags(tagsList)
-                val request = AddTagsRequest(file_id = fileId, service_names_to_tags = mapOf("my tags" to translatedTags))
+                val tagDomain = settingsManager.tagDomainFlow.first().ifBlank { "my tags" }
+                val request = AddTagsRequest(file_id = fileId, service_names_to_tags = mapOf(tagDomain to translatedTags))
 
                 val result = hydrusRepository.addTags(request)
                 if (result.isSuccess) {
@@ -309,9 +331,10 @@ class AetherViewModel(
             viewModelScope.launch {
                 try {
                     val translatedTags = translateTags(tagsList)
+                    val tagDomain = settingsManager.tagDomainFlow.first().ifBlank { "my tags" }
                     val request = AddTagsRequest(
                         file_id = fileId,
-                        service_names_to_tags = mapOf("my tags" to translatedTags)
+                        service_names_to_tags = mapOf(tagDomain to translatedTags)
                     )
                     val result = hydrusRepository.addTags(request)
                     if (result.isSuccess) {
@@ -333,7 +356,8 @@ class AetherViewModel(
                 if (tagsList.isEmpty()) return@launch
 
                 val translatedTags = translateTags(tagsList)
-                val request = AddTagsRequest(file_id = fileId, service_names_to_actions_to_tags = mapOf("my tags" to mapOf("1" to translatedTags)))
+                val tagDomain = settingsManager.tagDomainFlow.first().ifBlank { "my tags" }
+                val request = AddTagsRequest(file_id = fileId, service_names_to_actions_to_tags = mapOf(tagDomain to mapOf("1" to translatedTags)))
 
                 val result = hydrusRepository.addTags(request)
                 if (result.isSuccess) {
@@ -353,6 +377,7 @@ class AetherViewModel(
             _currentImageTags.value = "Loading tags..."
 
             try {
+                val tagDomain = settingsManager.tagDomainFlow.first().ifBlank { "my tags" }
                 val result = hydrusRepository.getFileMetadata(listOf(fileId))
                 if (result.isSuccess) {
                     val response = result.getOrNull()!!
@@ -360,7 +385,7 @@ class AetherViewModel(
                         val metadataItem = response.metadata[0]
                         _currentMimeType.value = metadataItem.mime
 
-                        val tagsList = metadataItem.tags?.values?.find { it.name == "my tags" }?.display_tags?.get("0") ?: emptyList()
+                        val tagsList = metadataItem.tags?.values?.find { it.name == tagDomain }?.display_tags?.get("0") ?: emptyList()
                         _currentImageTags.value = tagsList.joinToString(", ")
                     } else {
                         _currentImageTags.value = ""
@@ -519,7 +544,7 @@ class AetherViewModel(
         if (currentWord.isEmpty()) {
             return emptyList()
         }
-        val localEntries = wikiRepo.allWikiEntries.value
+        val localEntries = allWikiEntries.value
 
         val localMatches = localEntries.filter { entry ->
             entry.aliases.any { it.contains(currentWord, ignoreCase = true) }
@@ -713,7 +738,7 @@ class AetherViewModel(
         fileIds: Set<Long>,
         tagsText: String,
         isDelete: Boolean,
-        targetService: String
+        targetService: String = ""
     ) {
         if (fileIds.isEmpty() || tagsText.isBlank()) return
 
@@ -723,13 +748,18 @@ class AetherViewModel(
                 if (tagsList.isEmpty()) return@launch
 
                 val translatedTags = translateTags(tagsList)
+                val resolvedService = if (targetService.isBlank() || targetService == "my tags") {
+                    settingsManager.tagDomainFlow.first().ifBlank { "my tags" }
+                } else {
+                    targetService
+                }
 
                 _uiState.update { it.copy(isProcessingBatch = true, batchOperationMessage = "Processing", batchTotal = 1, batchProgress = 0) }
 
                 val actionMap = if (isDelete) {
-                    mapOf(targetService to mapOf("1" to translatedTags))
+                    mapOf(resolvedService to mapOf("1" to translatedTags))
                 } else {
-                    mapOf(targetService to mapOf("0" to translatedTags))
+                    mapOf(resolvedService to mapOf("0" to translatedTags))
                 }
 
                 val request = AddTagsRequest(

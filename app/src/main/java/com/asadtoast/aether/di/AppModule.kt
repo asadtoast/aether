@@ -34,7 +34,7 @@ val appModule = module {
     }
     single { SettingsManager(androidContext()) }
     single { HydrusRepository(get()) }
-    single { WikiRepository(androidContext()) }
+    single { WikiRepository(androidContext(), get()) }
     single { BackupManager(androidContext()) }
 
     // viewmodels

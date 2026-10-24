@@ -61,11 +61,14 @@ interface HydrusApiService {
     @POST("add_files/add_file")
     suspend fun addFile(
         @Header("Hydrus-Client-API-Access-Key") apiKey: String,
+        @Query("file_service_name") fileServiceName: String? = null,
         @Body file: okhttp3.RequestBody
     ): com.asadtoast.aether.data.AddFileResponse
+
     data class FileActionRequest(
         val file_id: Long? = null,
-        val hash: String? = null
+        val hash: String? = null,
+        val file_service_names: List<String>? = null
     )
 
     @POST("add_files/archive_files")
@@ -119,13 +122,28 @@ interface HydrusApiService {
         @Header("Hydrus-Client-API-Access-Key") apiKey: String,
         @Body request: SetFileRelationshipsRequest
     ): Response<Unit>
+
     @GET("manage_file_relationships/get_file_relationships")
     suspend fun getFileRelationships(
         @Header("Hydrus-Client-API-Access-Key") apiKey: String,
         @Query("hash") hash: String
     ): Response<FileRelationshipsResponse>
+
+    @GET("get_services")
+    suspend fun getServices(
+        @Header("Hydrus-Client-API-Access-Key") apiKey: String
+    ): Response<GetServicesResponse>
 }
 
 data class FileRelationshipsResponse(
     val file_relationships: Map<String, Any>
+)
+data class GetServicesResponse(
+    val services_v2: List<HydrusService>
+)
+
+data class HydrusService(
+    val name: String,
+    val type: Int,
+    val type_pretty: String
 )

@@ -60,9 +60,9 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
     ) = safeApiCall {
         val tagsJson = org.json.JSONArray(tags).toString()
         val fileDomain = service ?: settingsManager.fileDomainFlow.first()
-        getApi().searchFiles(getApiKey(), tagsJson, sortType, sortAsc, fileDomain)
+        val tagDomain = settingsManager.tagDomainFlow.first()
+        getApi().searchFiles(getApiKey(), tagsJson, sortType, sortAsc, fileDomain, tagDomain)
     }
-
     suspend fun getFileMetadata(
         fileIds: List<Long>, hashType: String? = null
     ) = safeApiCall {
@@ -81,16 +81,38 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
         getApi().getFile(getApiKey(), fileId)
     }
 
-    suspend fun addFile(file: RequestBody) = safeApiCall {
-        getApi().addFile(getApiKey(), file)
+    suspend fun addFile(file: RequestBody, fileDomainOverride: String? = null) = safeApiCall {
+        val fileServiceName = fileDomainOverride ?: settingsManager.fileDomainFlow.first()
+        getApi().addFile(getApiKey(), fileServiceName, file)
     }
 
     suspend fun addTags(request: AddTagsRequest) = safeApiCall {
-        getApi().addTags(getApiKey(), request)
+        val tagDomain = settingsManager.tagDomainFlow.first()
+
+        val updatedTags = request.service_names_to_tags?.let {
+            mapOf(tagDomain to it.values.flatten())
+        }
+
+        val updatedActions = request.service_names_to_actions_to_tags?.let { actionsMap ->
+            val combinedActions = mutableMapOf<String, MutableList<String>>()
+            actionsMap.values.forEach { actionToTags ->
+                actionToTags.forEach { (action, tags) ->
+                    combinedActions.getOrPut(action) { mutableListOf() }.addAll(tags)
+                }
+            }
+            mapOf(tagDomain to combinedActions.mapValues { it.value.toList() })
+        }
+
+        val updatedRequest = request.copy(
+            service_names_to_tags = updatedTags,
+            service_names_to_actions_to_tags = updatedActions
+        )
+        getApi().addTags(getApiKey(), updatedRequest)
     }
 
-    suspend fun searchTags(search: String, tagServiceName: String = "all known tags") = safeApiCall {
-        val response = getApi().searchTags(getApiKey(), search, tagServiceName)
+    suspend fun searchTags(search: String, tagServiceName: String? = null) = safeApiCall {
+        val domain = tagServiceName ?: settingsManager.tagDomainFlow.first()
+        val response = getApi().searchTags(getApiKey(), search, domain)
         if (response.isSuccessful) response.body() else throw Exception("Tag search failed: ${response.code()}")
     }
 
@@ -118,22 +140,27 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
     }
 
     // file actions (single and batch)
-    private suspend fun performFileAction(fileId: Long?, hash: String?, action: suspend (HydrusApiService, HydrusApiService.FileActionRequest) -> Unit) = safeApiCall {
-        val request = HydrusApiService.FileActionRequest(file_id = fileId, hash = hash)
+    private suspend fun performFileAction(fileId: Long?, hash: String?, fileDomainOverride: String? = null, action: suspend (HydrusApiService, HydrusApiService.FileActionRequest) -> Unit) = safeApiCall {
+        val fileDomain = fileDomainOverride ?: settingsManager.fileDomainFlow.first()
+        val request = HydrusApiService.FileActionRequest(
+            file_id = fileId,
+            hash = hash,
+            file_service_names = listOf(fileDomain)
+        )
         action(getApi(), request)
     }
 
-    suspend fun trashFile(fileId: Long? = null, hash: String? = null) =
-        performFileAction(fileId, hash) { api, req -> api.trashFile(getApiKey(), req) }
+    suspend fun trashFile(fileId: Long? = null, hash: String? = null, fileDomainOverride: String? = null) =
+        performFileAction(fileId, hash, fileDomainOverride) { api, req -> api.trashFile(getApiKey(), req) }
 
-    suspend fun restoreFile(fileId: Long? = null, hash: String? = null) =
-        performFileAction(fileId, hash) { api, req -> api.restoreFile(getApiKey(), req) }
+    suspend fun restoreFile(fileId: Long? = null, hash: String? = null, fileDomainOverride: String? = null) =
+        performFileAction(fileId, hash, fileDomainOverride) { api, req -> api.restoreFile(getApiKey(), req) }
 
-    suspend fun archiveFile(fileId: Long? = null, hash: String? = null) =
-        performFileAction(fileId, hash) { api, req -> api.archiveFile(getApiKey(), req) }
+    suspend fun archiveFile(fileId: Long? = null, hash: String? = null, fileDomainOverride: String? = null) =
+        performFileAction(fileId, hash, fileDomainOverride) { api, req -> api.archiveFile(getApiKey(), req) }
 
-    suspend fun unarchiveFile(fileId: Long? = null, hash: String? = null) =
-        performFileAction(fileId, hash) { api, req -> api.unarchiveFile(getApiKey(), req) }
+    suspend fun unarchiveFile(fileId: Long? = null, hash: String? = null, fileDomainOverride: String? = null) =
+        performFileAction(fileId, hash, fileDomainOverride) { api, req -> api.unarchiveFile(getApiKey(), req) }
 
     suspend fun testConnection(ip: String, port: String, apiKey: String): Boolean {
         val result = safeApiCall {
@@ -141,5 +168,9 @@ class HydrusRepository(private val settingsManager: SettingsManager) {
             tempApi.verifyAccessKey(apiKey)
         }
         return result.isSuccess
+    }
+
+    suspend fun getServices() = safeApiCall {
+        getApi().getServices(getApiKey())
     }
 }

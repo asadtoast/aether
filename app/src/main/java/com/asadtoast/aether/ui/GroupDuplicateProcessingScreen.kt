@@ -317,12 +317,17 @@ fun GroupDuplicateProcessingScreen(
                     null
                 }
 
+                val actualTagCount = currentFile.tags?.values
+                    ?.flatMap { it.display_tags?.get("0") ?: emptyList() }
+                    ?.distinct()
+                    ?.size ?: 0
+
                 FileMetadataOverlay(
                     size = currentFile.size ?: 0L,
                     width = currentFile.width?.toInt() ?: 0,
                     height = currentFile.height?.toInt() ?: 0,
                     ext = currentFile.mime.substringAfterLast("/"),
-                    tagCount = currentFile.tags?.size ?: 0,
+                    tagCount = actualTagCount,
                     duration = currentFile.duration,
                     framerate = calculatedFramerate,
                     modifier = Modifier
