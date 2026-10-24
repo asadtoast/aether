@@ -50,10 +50,11 @@ import kotlinx.coroutines.launch
 
 val LocalApiKey = androidx.compose.runtime.compositionLocalOf<String> { error("API Key not initialized") }
 
-sealed class AppOverlay {
-    data class CustomImageViewer(val list: List<com.asadtoast.aether.data.FileMetadata>, val index: Int) : AppOverlay()
-    data class TagDetails(val entity: com.asadtoast.aether.data.TagWikiEntity) : AppOverlay()
-    data class EditTagWiki(val entity: com.asadtoast.aether.data.TagWikiEntity) : AppOverlay()
+sealed class OverlayScreen {
+    data class TagDetail(val entity: com.asadtoast.aether.data.TagWikiEntity) : OverlayScreen()
+    data class EditTagWiki(val entity: com.asadtoast.aether.data.TagWikiEntity) : OverlayScreen()
+    data class GalleryViewer(val list: List<com.asadtoast.aether.data.FileMetadata>, val currentIndex: Int) : OverlayScreen()
+    data class WikiSingleViewer(val fileMetadata: com.asadtoast.aether.data.FileMetadata) : OverlayScreen()
 }
 
 @Suppress("DEPRECATION")
@@ -151,12 +152,12 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        var overlayStack by remember { mutableStateOf(listOf<AppOverlay>()) }
+                        val overlayStack = remember { androidx.compose.runtime.mutableStateListOf<OverlayScreen>() }
                         val coroutineScope = rememberCoroutineScope()
                         val mutedTags by wikiViewModel.mutedTags.collectAsState(initial = emptySet())
 
                         BackHandler(enabled = overlayStack.isNotEmpty()) {
-                            overlayStack = overlayStack.dropLast(1)
+                            overlayStack.removeLastOrNull()
                         }
 
                         Box(modifier = Modifier.fillMaxSize()) {
@@ -234,17 +235,19 @@ class MainActivity : ComponentActivity() {
                                         selectedIndex?.let { index ->
                                             // Only handle back if overlayStack is empty
                                             BackHandler(enabled = overlayStack.isEmpty()) {
-                                                viewModel.selectImage(
-                                                    null
-                                                )
+                                                viewModel.selectImage(null)
                                             }
 
                                             FullScreenViewer(
                                                 viewModel = viewModel,
                                                 pagedImages = pagedImages,
                                                 initialIndex = index,
+                                                customImageList = null,
                                                 onClose = { viewModel.selectImage(null) },
-                                                onAddToSearch = { clickedTag ->
+                                                onPageChanged = { newIndex: Int ->
+                                                    viewModel.selectImage(newIndex)
+                                                },
+                                                onAddToSearch = { clickedTag: String ->
                                                     // auto assign string,
                                                     val currentQuery = viewModel.uiState.value.searchQuery
                                                     val newQuery = if (currentQuery.isBlank()) clickedTag else "$currentQuery, $clickedTag"
@@ -256,23 +259,18 @@ class MainActivity : ComponentActivity() {
                                                         android.widget.Toast.LENGTH_SHORT
                                                     ).show()
                                                 },
-                                                onNavigateToTagWiki = { clickedTag ->
-                                                    val entity = viewModel.getTagWikiEntity(
-                                                        clickedTag
-                                                    )
-                                                    overlayStack =
-                                                        overlayStack + AppOverlay.TagDetails(
-                                                            entity
-                                                        )
+                                                onNavigateToTagWiki = { clickedTag: String ->
+                                                    val entity = viewModel.getTagWikiEntity(clickedTag)
+                                                    overlayStack.add(OverlayScreen.TagDetail(entity))
                                                 },
-                                                onAlternateClick = { hash ->
+                                                onAlternateClick = { hash: String ->
                                                     coroutineScope.launch {
                                                         val allHashes = viewModel.currentAlternates.value
                                                         if (allHashes.isNotEmpty()) {
                                                             val alternatesMetadata = viewModel.fetchAlternatesMetadata(allHashes)
                                                             val targetIndex = alternatesMetadata.indexOfFirst { it.hash == hash }.coerceAtLeast(0)
                                                             if (alternatesMetadata.isNotEmpty()) {
-                                                                overlayStack = overlayStack + AppOverlay.CustomImageViewer(alternatesMetadata, targetIndex)
+                                                                overlayStack.add(OverlayScreen.GalleryViewer(alternatesMetadata, targetIndex))
                                                             } else {
                                                                 android.widget.Toast.makeText(context, "Failed to load alternates", android.widget.Toast.LENGTH_SHORT).show()
                                                             }
@@ -292,7 +290,7 @@ class MainActivity : ComponentActivity() {
                                             navController = navController,
                                             onClose = { navController.popBackStack() },
                                             onOpenTagDetail = { entity ->
-                                                overlayStack = overlayStack + AppOverlay.TagDetails(entity)
+                                                overlayStack.add(OverlayScreen.TagDetail(entity))
                                             }
                                         )
                                     }
@@ -318,113 +316,158 @@ class MainActivity : ComponentActivity() {
                             }
 
                             // Global Overlay Renderer
-                            overlayStack.lastOrNull()?.let { currentOverlay ->
-                                when (currentOverlay) {
-                                    is AppOverlay.TagDetails -> {
-                                        TagDetailDialog(
-                                            entryDetail = currentOverlay.entity,
-                                            wikiViewModel = wikiViewModel,
-                                            isMuted = mutedTags.contains(currentOverlay.entity.tagName),
-                                            onMuteToggle = {
-                                                wikiViewModel.toggleMuteTag(
-                                                    currentOverlay.entity.tagName
-                                                )
-                                            },
-                                            onDismiss = {
-                                                overlayStack = overlayStack.dropLast(1)
-                                            },
-                                            onEditClick = { updatedEntity ->
-                                                overlayStack = overlayStack + AppOverlay.EditTagWiki(updatedEntity)
-                                            },
-                                            onOpenExample = { list, index ->
-                                                overlayStack =
-                                                    overlayStack + AppOverlay.CustomImageViewer(
-                                                        list,
-                                                        index
-                                                    )
-                                            },
-                                            onTagLinkClick = { clickedTag ->
-                                                val entity = viewModel.getTagWikiEntity(clickedTag)
-                                                overlayStack = overlayStack + AppOverlay.TagDetails(entity)
+                            when (val currentOverlay = overlayStack.lastOrNull()) {
+                                is OverlayScreen.TagDetail -> {
+                                    TagDetailDialog(
+                                        entryDetail = currentOverlay.entity,
+                                        wikiViewModel = wikiViewModel,
+                                        isMuted = mutedTags.contains(currentOverlay.entity.tagName),
+                                        onMuteToggle = {
+                                            wikiViewModel.toggleMuteTag(currentOverlay.entity.tagName)
+                                        },
+                                        onDismiss = {
+                                            overlayStack.removeLastOrNull()
+                                        },
+                                        onEditClick = { updatedEntity ->
+                                            overlayStack.add(OverlayScreen.EditTagWiki(updatedEntity))
+                                        },
+                                        onOpenExample = { list, index ->
+                                            val clickedMetadata = list.getOrNull(index)
+                                            if (clickedMetadata != null) {
+                                                overlayStack.add(OverlayScreen.WikiSingleViewer(clickedMetadata))
                                             }
-                                        )
-                                    }
+                                        },
+                                        onTagLinkClick = { clickedTag: String ->
+                                            val entity = viewModel.getTagWikiEntity(clickedTag)
+                                            overlayStack.add(OverlayScreen.TagDetail(entity))
+                                        }
+                                    )
+                                }
 
-                                    is AppOverlay.EditTagWiki -> {
-                                        val allEntries by wikiViewModel.allWikiEntries.collectAsState(initial = emptyList())
+                                is OverlayScreen.EditTagWiki -> {
+                                    val allEntries by wikiViewModel.allWikiEntries.collectAsState(initial = emptyList())
 
-                                        com.asadtoast.aether.ui.FullScreenEditDialog(
-                                            initialTag = currentOverlay.entity.tagName,
-                                            initialDescription = currentOverlay.entity.description,
-                                            initialAliases = currentOverlay.entity.aliases,
-                                            initialReferences = currentOverlay.entity.references,
-                                            initialCount = currentOverlay.entity.count,
-                                            allWikiEntries = allEntries,
-                                            onDismiss = {
-                                                overlayStack = overlayStack.dropLast(1)
-                                            },
-                                            onSave = { tag, desc, aliases, refs, count ->
-                                                wikiViewModel.saveWikiEntry(tag, desc, aliases, refs, count)
-                                                val updatedEntity = currentOverlay.entity.copy(
-                                                    tagName = tag,
-                                                    description = desc,
-                                                    aliases = aliases,
-                                                    references = refs,
-                                                    count = count
-                                                )
-                                                overlayStack = overlayStack.dropLast(2) + AppOverlay.TagDetails(updatedEntity)
-                                            },
-                                            onDelete = {
-                                                wikiViewModel.deleteWikiEntry(currentOverlay.entity.tagName)
-                                                overlayStack = overlayStack.dropLast(2)
+                                    com.asadtoast.aether.ui.FullScreenEditDialog(
+                                        initialTag = currentOverlay.entity.tagName,
+                                        initialDescription = currentOverlay.entity.description,
+                                        initialAliases = currentOverlay.entity.aliases,
+                                        initialReferences = currentOverlay.entity.references,
+                                        initialCount = currentOverlay.entity.count,
+                                        allWikiEntries = allEntries,
+                                        onDismiss = {
+                                            overlayStack.removeLastOrNull()
+                                        },
+                                        onSave = { tag, desc, aliases, refs, count ->
+                                            wikiViewModel.saveWikiEntry(tag, desc, aliases, refs, count)
+                                            val updatedEntity = currentOverlay.entity.copy(
+                                                tagName = tag,
+                                                description = desc,
+                                                aliases = aliases,
+                                                references = refs,
+                                                count = count
+                                            )
+                                            overlayStack.removeLastOrNull()
+                                            overlayStack.removeLastOrNull()
+                                            overlayStack.add(OverlayScreen.TagDetail(updatedEntity))
+                                        },
+                                        onDelete = {
+                                            wikiViewModel.deleteWikiEntry(currentOverlay.entity.tagName)
+                                            overlayStack.removeLastOrNull()
+                                            overlayStack.removeLastOrNull()
+                                        }
+                                    )
+                                }
+
+                                is OverlayScreen.GalleryViewer -> {
+                                    FullScreenViewer(
+                                        viewModel = viewModel,
+                                        pagedImages = null,
+                                        initialIndex = currentOverlay.currentIndex,
+                                        customImageList = currentOverlay.list,
+                                        onClose = {
+                                            overlayStack.removeLastOrNull()
+                                        },
+                                        onPageChanged = { newIndex: Int ->
+                                            val lastIdx = overlayStack.lastIndex
+                                            if (lastIdx >= 0 && overlayStack[lastIdx] is OverlayScreen.GalleryViewer) {
+                                                overlayStack[lastIdx] = currentOverlay.copy(currentIndex = newIndex)
                                             }
-                                        )
-                                    }
+                                        },
+                                        onAddToSearch = { clickedTag: String ->
+                                            val currentQuery = viewModel.uiState.value.searchQuery
+                                            val newQuery = if (currentQuery.isBlank()) clickedTag else "$currentQuery, $clickedTag"
+                                            viewModel.updateSearchQuery(newQuery)
 
-                                    is AppOverlay.CustomImageViewer -> {
-                                        FullScreenViewer(
-                                            viewModel = viewModel,
-                                            initialIndex = currentOverlay.index,
-                                            customImageList = currentOverlay.list,
-                                            onClose = {
-                                                overlayStack = overlayStack.dropLast(1)
-                                            },
-                                            onAddToSearch = { clickedTag ->
-                                                val currentQuery = viewModel.uiState.value.searchQuery
-                                                val newQuery = if (currentQuery.isBlank()) clickedTag else "$currentQuery, $clickedTag"
-                                                viewModel.updateSearchQuery(newQuery)
-
-                                                android.widget.Toast.makeText(
-                                                    context,
-                                                    "Tag added to search",
-                                                    android.widget.Toast.LENGTH_SHORT
-                                                ).show()
-                                            },
-                                            onNavigateToTagWiki = { tagName ->
-                                                val entity =
-                                                    viewModel.getTagWikiEntity(tagName)
-                                                overlayStack =
-                                                    overlayStack + AppOverlay.TagDetails(
-                                                        entity
-                                                    )
-                                            },
-                                            onAlternateClick = { hash ->
-                                                coroutineScope.launch {
-                                                    val allHashes = viewModel.currentAlternates.value
-                                                    if (allHashes.isNotEmpty()) {
-                                                        val alternatesMetadata = viewModel.fetchAlternatesMetadata(allHashes)
-                                                        val targetIndex = alternatesMetadata.indexOfFirst { it.hash == hash }.coerceAtLeast(0)
-                                                        if (alternatesMetadata.isNotEmpty()) {
-                                                            overlayStack = overlayStack + AppOverlay.CustomImageViewer(alternatesMetadata, targetIndex)
-                                                        } else {
-                                                            android.widget.Toast.makeText(context, "Failed to load alternates", android.widget.Toast.LENGTH_SHORT).show()
-                                                        }
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "Tag added to search",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        onNavigateToTagWiki = { clickedTag: String ->
+                                            val entity = viewModel.getTagWikiEntity(clickedTag)
+                                            overlayStack.add(OverlayScreen.TagDetail(entity))
+                                        },
+                                        onAlternateClick = { hash: String ->
+                                            coroutineScope.launch {
+                                                val allHashes = viewModel.currentAlternates.value
+                                                if (allHashes.isNotEmpty()) {
+                                                    val alternatesMetadata = viewModel.fetchAlternatesMetadata(allHashes)
+                                                    val targetIndex = alternatesMetadata.indexOfFirst { it.hash == hash }.coerceAtLeast(0)
+                                                    if (alternatesMetadata.isNotEmpty()) {
+                                                        overlayStack.add(OverlayScreen.GalleryViewer(alternatesMetadata, targetIndex))
+                                                    } else {
+                                                        android.widget.Toast.makeText(context, "Failed to load alternates", android.widget.Toast.LENGTH_SHORT).show()
                                                     }
                                                 }
                                             }
-                                        )
-                                    }
+                                        }
+                                    )
                                 }
+
+                                is OverlayScreen.WikiSingleViewer -> {
+                                    FullScreenViewer(
+                                        viewModel = viewModel,
+                                        pagedImages = null,
+                                        initialIndex = 0,
+                                        customImageList = listOf(currentOverlay.fileMetadata),
+                                        onClose = {
+                                            overlayStack.removeLastOrNull()
+                                        },
+                                        onPageChanged = { _: Int -> },
+                                        onAddToSearch = { clickedTag: String ->
+                                            val currentQuery = viewModel.uiState.value.searchQuery
+                                            val newQuery = if (currentQuery.isBlank()) clickedTag else "$currentQuery, $clickedTag"
+                                            viewModel.updateSearchQuery(newQuery)
+
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "Tag added to search",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        onNavigateToTagWiki = { clickedTag: String ->
+                                            val entity = viewModel.getTagWikiEntity(clickedTag)
+                                            overlayStack.add(OverlayScreen.TagDetail(entity))
+                                        },
+                                        onAlternateClick = { hash: String ->
+                                            coroutineScope.launch {
+                                                val allHashes = viewModel.currentAlternates.value
+                                                if (allHashes.isNotEmpty()) {
+                                                    val alternatesMetadata = viewModel.fetchAlternatesMetadata(allHashes)
+                                                    val targetIndex = alternatesMetadata.indexOfFirst { it.hash == hash }.coerceAtLeast(0)
+                                                    if (alternatesMetadata.isNotEmpty()) {
+                                                        overlayStack.add(OverlayScreen.GalleryViewer(alternatesMetadata, targetIndex))
+                                                    } else {
+                                                        android.widget.Toast.makeText(context, "Failed to load alternates", android.widget.Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+
+                                null -> {}
                             }
                         }
                     }

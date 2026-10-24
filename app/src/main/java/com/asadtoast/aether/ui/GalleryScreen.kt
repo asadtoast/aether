@@ -90,9 +90,28 @@ fun GalleryScreen(
     val tagSuggestions by viewModel.tagSuggestions.collectAsState()
     val selectedImageIndex by viewModel.selectedImageIndex.collectAsState()
 
+    var previousSearchQuery by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(uiState.searchQuery) }
+    var previousTrashMode by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(uiState.isTrashMode) }
+
     // reset scroll position when search query or trash mode changes
     LaunchedEffect(uiState.searchQuery, uiState.isTrashMode) {
-        gridState.scrollToItem(0)
+        if (previousSearchQuery != uiState.searchQuery || previousTrashMode != uiState.isTrashMode) {
+            previousSearchQuery = uiState.searchQuery
+            previousTrashMode = uiState.isTrashMode
+            gridState.scrollToItem(0)
+        }
+    }
+
+    LaunchedEffect(selectedImageIndex) {
+        selectedImageIndex?.let { index ->
+            if (index in 0 until pagedImages.itemCount) {
+                val visibleItems = gridState.layoutInfo.visibleItemsInfo
+                val isVisible = visibleItems.any { it.index == index }
+                if (!isVisible) {
+                    gridState.scrollToItem(index)
+                }
+            }
+        }
     }
 
     var isSelectionMode by remember { mutableStateOf(false) }

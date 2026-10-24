@@ -84,7 +84,8 @@ fun FullScreenViewer(
     onNavigateToTagWiki: (String) -> Unit,
     onAlternateClick: (String) -> Unit = {},
     customImageList: List<com.asadtoast.aether.data.FileMetadata>? = null,
-    pagedImages: androidx.paging.compose.LazyPagingItems<com.asadtoast.aether.data.FileMetadata>? = null
+    pagedImages: androidx.paging.compose.LazyPagingItems<com.asadtoast.aether.data.FileMetadata>? = null,
+    onPageChanged: (Int) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currentAlternates by viewModel.currentAlternates.collectAsState()
@@ -95,12 +96,12 @@ fun FullScreenViewer(
 
     // edit mode for tag panel
     val focusManager = LocalFocusManager.current
-    var isEditMode by remember { mutableStateOf(false) }
+    var isEditMode by rememberSaveable { mutableStateOf(false) }
     var tagsPendingDelete by remember { mutableStateOf(setOf<String>()) }
 
     // booru scraper state
     val booruScrapeState by viewModel.booruScrapeState.collectAsState()
-    var showBooruDialog by remember { mutableStateOf(false) }
+    var showBooruDialog by rememberSaveable { mutableStateOf(false) }
 
     // pdf/psd/zip... filtered view values
     val itemCount = customImageList?.size ?: pagedImages?.itemCount ?: 0
@@ -123,6 +124,11 @@ fun FullScreenViewer(
         pageCount = { itemCount }
     )
 
+    LaunchedEffect(pagerState.settledPage) {
+        onPageChanged(pagerState.settledPage)
+        viewModel.selectImage(pagerState.settledPage)
+    }
+
     val getFileAtIndex: (Int) -> com.asadtoast.aether.data.FileMetadata? = { index ->
         if (customImageList != null) {
             customImageList.getOrNull(index)
@@ -138,7 +144,7 @@ fun FullScreenViewer(
     // ui visibility toggle for fullscreen video
     val view = LocalView.current
     val window = (view.context as? Activity)?.window
-    var isUiVisible by remember { mutableStateOf(true) }
+    var isUiVisible by rememberSaveable { mutableStateOf(true) }
 
 
     // hide top bar
@@ -163,12 +169,24 @@ fun FullScreenViewer(
     val clipboardTags by viewModel.clipboardTags.collectAsState()
 
     // slideshow states
-    var isSlideshowActive by remember { mutableStateOf(false) }
-    var showSlideshowDialog by remember { mutableStateOf(false) }
-    var slideshowInterval by remember { mutableStateOf("5") }
-    var waitForVideo by remember { mutableStateOf(true) }
+    var isSlideshowActive by rememberSaveable { mutableStateOf(false) }
+    var showSlideshowDialog by rememberSaveable { mutableStateOf(false) }
+    var slideshowInterval by rememberSaveable { mutableStateOf("5") }
+    var waitForVideo by rememberSaveable { mutableStateOf(true) }
     var currentVideoEnded by remember { mutableStateOf(false) }
-    var loopSlideshow by remember { mutableStateOf(false) }
+    var loopSlideshow by rememberSaveable { mutableStateOf(false) }
+
+    // keep screen on while slideshow is active
+    DisposableEffect(isSlideshowActive) {
+        if (isSlideshowActive) {
+            view.keepScreenOn = true
+        }
+        onDispose {
+            if (isSlideshowActive) {
+                view.keepScreenOn = false
+            }
+        }
+    }
 
     // slideshow engine
     LaunchedEffect(isSlideshowActive) {
@@ -836,7 +854,7 @@ fun FullScreenViewer(
 
         // booru scrape dialog
         if (showBooruDialog && currentFile != null) {
-            var selectedSource by remember { mutableStateOf<com.asadtoast.aether.data.ScraperSource?>(null) }
+            var selectedSource by rememberSaveable { mutableStateOf<com.asadtoast.aether.data.ScraperSource?>(null) }
 
             AlertDialog(
                 onDismissRequest = {
@@ -1181,13 +1199,29 @@ fun FullScreenVideoPlayer(
     }
 
     val context = LocalContext.current
+    val view = LocalView.current
     var isMuted by rememberSaveable { mutableStateOf(true) }
     var showSubtitles by rememberSaveable { mutableStateOf(false) }
     var isZoomed by rememberSaveable { mutableStateOf(false) }
+    var isVideoPlaying by remember { mutableStateOf(false) }
+    var savedPosition by rememberSaveable(url) { mutableLongStateOf(VideoStateCache.positions.get(url) ?: 0L) }
 
     // retrieve player from pool
     val exoPlayer = remember(context, apiKey) {
         com.asadtoast.aether.utils.ExoPlayerPool.getPlayer(context, apiKey)
+    }
+
+    // keep screen on while video is actively playing on current page
+    DisposableEffect(isVideoPlaying, isActive) {
+        val shouldKeepScreenOn = isVideoPlaying && isActive
+        if (shouldKeepScreenOn) {
+            view.keepScreenOn = true
+        }
+        onDispose {
+            if (shouldKeepScreenOn) {
+                view.keepScreenOn = false
+            }
+        }
     }
 
     // lifecycle control (pause if minimized)
@@ -1196,6 +1230,8 @@ fun FullScreenVideoPlayer(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
+                savedPosition = kotlin.math.max(0L, exoPlayer.currentPosition)
+                VideoStateCache.positions.put(url, savedPosition)
                 exoPlayer.pause()
             } else if (event == Lifecycle.Event.ON_RESUME && isActive) {
                 exoPlayer.play()
@@ -1208,8 +1244,13 @@ fun FullScreenVideoPlayer(
     // ondispose send player back to pool
     DisposableEffect(exoPlayer, url) {
         val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                isVideoPlaying = isPlaying
+            }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) {
+                    savedPosition = 0L
                     VideoStateCache.positions.put(url, 0L)
                     onVideoEnded()
                 }
@@ -1238,7 +1279,10 @@ fun FullScreenVideoPlayer(
         }
         exoPlayer.addListener(listener)
         onDispose {
-            VideoStateCache.positions.put(url, kotlin.math.max(0L, exoPlayer.currentPosition))
+            isVideoPlaying = false
+            val currentPos = kotlin.math.max(0L, exoPlayer.currentPosition)
+            savedPosition = currentPos
+            VideoStateCache.positions.put(url, currentPos)
             exoPlayer.removeListener(listener)
             exoPlayer.stop()
             exoPlayer.clearMediaItems()
@@ -1282,7 +1326,7 @@ fun FullScreenVideoPlayer(
 
         exoPlayer.setMediaItem(mediaItemBuilder.build())
 
-        val pos = VideoStateCache.positions.get(url) ?: 0L
+        val pos = VideoStateCache.positions.get(url) ?: savedPosition
         if (pos > 0L) {
             exoPlayer.seekTo(pos)
         }
@@ -1365,6 +1409,7 @@ fun FullScreenVideoPlayer(
                     }
                 },
                 update = { playerView ->
+                    playerView.keepScreenOn = isVideoPlaying && isActive
                     playerView.resizeMode = if (isZoomed) {
                         androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                     } else {
@@ -1372,6 +1417,7 @@ fun FullScreenVideoPlayer(
                     }
                 },
                 onRelease = { playerView ->
+                    playerView.keepScreenOn = false
                     playerView.player = null
                 },
                 modifier = Modifier.fillMaxSize()
@@ -1636,3 +1682,4 @@ fun InlineTagInputField(
         }
     }
 }
+
