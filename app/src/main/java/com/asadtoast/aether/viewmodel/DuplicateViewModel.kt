@@ -110,6 +110,8 @@ class DuplicateViewModel(
         val allHashes = batchedPairs.flatMap { listOf(it[0], it[1]) }.distinct()
 
         viewModelScope.launch {
+            val tagServiceKey = settingsManager.tagDomainFlow.first()
+
             hydrusRepository.getFileMetadataByHashes(allHashes)
                 .onSuccess { metadataResponse ->
                     val metaMap = metadataResponse.metadata.associateBy { it.hash }
@@ -122,28 +124,8 @@ class DuplicateViewModel(
                             DuplicatePair(
                                 hash_a = hashList[0],
                                 hash_b = hashList[1],
-                                meta_a = FileMetadata(
-                                    id = apiMetaA.file_id,
-                                    thumbnailUrl = hydrusRepository.getFileUrl(apiMetaA.file_id, isThumbnail = true),
-                                    fileUrl = hydrusRepository.getFileUrl(apiMetaA.file_id, isThumbnail = false),
-                                    mime = apiMetaA.mime,
-                                    size = apiMetaA.size,
-                                    hash = apiMetaA.hash,
-                                    width = apiMetaA.width?.toInt(),
-                                    height = apiMetaA.height?.toInt(),
-                                    tags = apiMetaA.tags?.values?.flatMap { it.display_tags?.values?.flatten() ?: emptyList() } ?: emptyList()
-                                ),
-                                meta_b = FileMetadata(
-                                    id = apiMetaB.file_id,
-                                    thumbnailUrl = hydrusRepository.getFileUrl(apiMetaB.file_id, isThumbnail = true),
-                                    fileUrl = hydrusRepository.getFileUrl(apiMetaB.file_id, isThumbnail = false),
-                                    mime = apiMetaB.mime,
-                                    size = apiMetaB.size,
-                                    hash = apiMetaB.hash,
-                                    width = apiMetaB.width?.toInt(),
-                                    height = apiMetaB.height?.toInt(),
-                                    tags = apiMetaB.tags?.values?.flatMap { it.display_tags?.values?.flatten() ?: emptyList() } ?: emptyList()
-                                )
+                                meta_a = apiMetaA.toFileMetadata(tagServiceKey),
+                                meta_b = apiMetaB.toFileMetadata(tagServiceKey)
                             )
                         } else null
                     }
@@ -155,6 +137,32 @@ class DuplicateViewModel(
                     _isLoading.value = false
                 }
         }
+    }
+
+    private suspend fun com.asadtoast.aether.data.HydrusFileMetadata.toFileMetadata(tagServiceKey: String): FileMetadata {
+        val extractedTags = if (tagServiceKey.isNotEmpty() && this.tags?.containsKey(tagServiceKey) == true) {
+            this.tags[tagServiceKey]?.display_tags?.values?.flatten() ?: emptyList()
+        } else {
+            this.tags?.values?.flatMap { it.display_tags?.values?.flatten() ?: emptyList() } ?: emptyList()
+        }.distinct()
+
+        val calculatedFramerate = if (this.num_frames != null && this.duration != null && this.duration > 0) {
+            this.num_frames.toDouble() / (this.duration / 1000.0)
+        } else null
+
+        return FileMetadata(
+            id = this.file_id,
+            thumbnailUrl = hydrusRepository.getFileUrl(this.file_id, isThumbnail = true),
+            fileUrl = hydrusRepository.getFileUrl(this.file_id, isThumbnail = false),
+            mime = this.mime,
+            size = this.size,
+            hash = this.hash,
+            width = this.width?.toInt(),
+            height = this.height?.toInt(),
+            duration = this.duration,
+            framerate = calculatedFramerate,
+            tags = extractedTags
+        )
     }
 
     fun resolveDuplicate(currentPair: DuplicatePair, action: DuplicateAction) {
