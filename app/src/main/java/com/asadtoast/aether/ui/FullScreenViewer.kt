@@ -239,13 +239,17 @@ fun FullScreenViewer(
         }
     }
 
+    LaunchedEffect(settledFileId) {
+        val baseFile = getFileAtIndex(pagerState.settledPage)
+        if (baseFile?.hash != null) {
+            viewModel.loadAlternates(baseFile.hash)
+        }
+    }
+
     LaunchedEffect(settledFileId, alternateFile) {
         val targetFile = alternateFile ?: getFileAtIndex(pagerState.settledPage)
         if (targetFile != null) {
             viewModel.fetchExistingTagsForImage(targetFile.id)
-            if (targetFile.hash != null) {
-                viewModel.loadAlternates(targetFile.hash)
-            }
             isEditMode = false
             tagsPendingDelete = emptySet()
         }
@@ -403,7 +407,6 @@ fun FullScreenViewer(
                                                     modifier = Modifier
                                                         .size(96.dp)
                                                         .clickable {
-                                                            onAlternateClick(altHash)
                                                             viewModel.viewAlternate(altHash)
                                                         }
                                                         .border(
@@ -782,30 +785,14 @@ fun FullScreenViewer(
                             if (inTrashMode) {
                                 IconButton(onClick = {
                                     val fileIdToProcess = currentFile.id
-                                    if (itemCount <= 1) {
-                                        viewModel.restoreImage(fileIdToProcess) { onClose() }
-                                    } else {
-                                        coroutineScope.launch {
-                                            val targetPage = if (pagerState.currentPage < itemCount - 1) pagerState.currentPage + 1 else pagerState.currentPage - 1
-                                            pagerState.animateScrollToPage(targetPage)
-                                            viewModel.restoreImage(fileIdToProcess) {}
-                                        }
-                                    }
+                                    viewModel.restoreImage(fileIdToProcess) { onClose() }
                                 }) {
                                     Icon(Icons.Default.RestoreFromTrash, "Restore to Inbox", tint = Color.White)
                                 }
                             } else {
                                 IconButton(onClick = {
                                     val fileIdToProcess = currentFile.id
-                                    if (itemCount <= 1) {
-                                        viewModel.trashSpecificFile(fileIdToProcess) { onClose() }
-                                    } else {
-                                        coroutineScope.launch {
-                                            val targetPage = if (pagerState.currentPage < itemCount - 1) pagerState.currentPage + 1 else pagerState.currentPage - 1
-                                            pagerState.animateScrollToPage(targetPage)
-                                            viewModel.trashSpecificFile(fileIdToProcess) {}
-                                        }
-                                    }
+                                    viewModel.trashSpecificFile(fileIdToProcess) { onClose() }
                                 }) {
                                     Icon(Icons.Default.Delete, "Send to trash", tint = Color.White)
                                 }

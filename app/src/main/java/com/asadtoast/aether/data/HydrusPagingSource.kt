@@ -9,15 +9,27 @@ class HydrusPagingSource(
 ) : PagingSource<Int, FileMetadata>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, FileMetadata> {
-        val position = params.key ?: 0
-        val limit = params.loadSize
+        if (fileIds.isEmpty()) {
+            return LoadResult.Page(data = emptyList(), prevKey = null, nextKey = null, itemsBefore = 0, itemsAfter = 0)
+        }
 
-        if (fileIds.isEmpty() || position >= fileIds.size) {
+        val limit = params.loadSize
+        val startPosition: Int
+        val endPosition: Int
+
+        if (params is LoadParams.Prepend) {
+            endPosition = (params.key ?: 0).coerceAtMost(fileIds.size)
+            startPosition = maxOf(0, endPosition - limit)
+        } else {
+            startPosition = (params.key ?: 0).coerceAtMost(maxOf(0, fileIds.size - 1))
+            endPosition = (startPosition + limit).coerceAtMost(fileIds.size)
+        }
+
+        if (startPosition >= endPosition) {
             return LoadResult.Page(data = emptyList(), prevKey = null, nextKey = null)
         }
 
-        val endPosition = (position + limit).coerceAtMost(fileIds.size)
-        val chunkIds = fileIds.subList(position, endPosition)
+        val chunkIds = fileIds.subList(startPosition, endPosition)
 
         return try {
             val response = hydrusRepository.getFileMetadata(chunkIds)
@@ -49,12 +61,14 @@ class HydrusPagingSource(
             }
 
             val nextKey = if (endPosition < fileIds.size) endPosition else null
-            val prevKey = if (position > 0) maxOf(0, position - limit) else null
+            val prevKey = if (startPosition > 0) startPosition else null
 
             LoadResult.Page(
                 data = metadataList,
                 prevKey = prevKey,
-                nextKey = nextKey
+                nextKey = nextKey,
+                itemsBefore = startPosition,
+                itemsAfter = fileIds.size - endPosition
             )
         } catch (e: Exception) {
             LoadResult.Error(e)
@@ -62,8 +76,9 @@ class HydrusPagingSource(
     }
 
     override fun getRefreshKey(state: PagingState<Int, FileMetadata>): Int? {
-        return state.anchorPosition?.let { anchorPosition ->
-            maxOf(0, anchorPosition - (state.config.initialLoadSize / 2))
-        }
+        val anchorPosition = state.anchorPosition ?: return null
+        val anchorPage = state.closestPageToPosition(anchorPosition) ?: return null
+        val pageStart = anchorPage.prevKey ?: ((anchorPage.nextKey ?: fileIds.size) - anchorPage.data.size)
+        return maxOf(0, pageStart)
     }
 }

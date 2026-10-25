@@ -409,11 +409,9 @@ class AetherViewModel(
             // gallery refresh after processing
             _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
             if (hasModifications) {
-                _searchTrigger.value += 1
                 hasModifications = false
-            } else {
-                currentPagingSource?.invalidate()
             }
+            currentPagingSource?.invalidate()
         }
     }
 
@@ -421,70 +419,90 @@ class AetherViewModel(
         _uiState.update { it.copy(reviewIndex = 0) }
         if (hasModifications) {
             _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-            _searchTrigger.value += 1
+            currentPagingSource?.invalidate()
             hasModifications = false
+        }
+    }
+
+    // function to close view when deleting a particular alternate in fullscreenviewer
+    private val inFlightFileOperations = mutableSetOf<Long>()
+
+    private fun removeFileOptimistically(fileId: Long, onEmptyList: () -> Unit) {
+        val viewingAlt = _viewingAlternate.value
+        if (viewingAlt?.id == fileId) {
+            viewingAlt.hash?.let { altHash ->
+                _currentAlternates.update { list -> list.filterNot { it == altHash } }
+            }
+            _viewingAlternate.value = null
+        }
+        val wasRemoved = currentActiveIds.remove(fileId)
+        if (wasRemoved) {
+            if (currentActiveIds.isEmpty()) onEmptyList()
+            if (!_uiState.value.isReviewMode) {
+                _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
+                currentPagingSource?.invalidate()
+            } else {
+                hasModifications = true
+            }
         }
     }
 
     // function to read, send to trash and update
     fun trashSpecificFile(fileId: Long, onEmptyList: () -> Unit) {
+        if (!inFlightFileOperations.add(fileId)) return
+        removeFileOptimistically(fileId, onEmptyList)
+
         viewModelScope.launch {
             try {
                 val result = hydrusRepository.trashFile(fileId = fileId)
-                if (result.isSuccess) {
-                    currentActiveIds.remove(fileId)
-                    hasModifications = true
-                    if (currentActiveIds.isEmpty()) onEmptyList()
-                    if (!_uiState.value.isReviewMode) {
-                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                        currentPagingSource?.invalidate()
-                    }
+                if (result.isFailure) {
+                    _uiEvents.emit(UiEvent.ShowToast("Error trashing file"))
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 _uiEvents.emit(UiEvent.ShowToast("Error trashing file"))
+            } finally {
+                inFlightFileOperations.remove(fileId)
             }
         }
     }
 
     // archive specific file and update
     fun archiveFile(fileId: Long, onEmptyList: () -> Unit) {
+        if (!inFlightFileOperations.add(fileId)) return
+        removeFileOptimistically(fileId, onEmptyList)
+
         viewModelScope.launch {
             try {
                 val result = hydrusRepository.archiveFile(fileId = fileId)
-                if (result.isSuccess) {
-                    currentActiveIds.remove(fileId)
-                    hasModifications = true
-                    if (currentActiveIds.isEmpty()) onEmptyList()
-                    if (!_uiState.value.isReviewMode) {
-                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                        currentPagingSource?.invalidate()
-                    }
+                if (result.isFailure) {
+                    _uiEvents.emit(UiEvent.ShowToast("Error archiving file"))
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 _uiEvents.emit(UiEvent.ShowToast("Error archiving file"))
+            } finally {
+                inFlightFileOperations.remove(fileId)
             }
         }
     }
 
     // inbox specific file and update
     fun inboxFile(fileId: Long, onEmptyList: () -> Unit) {
+        if (!inFlightFileOperations.add(fileId)) return
+        removeFileOptimistically(fileId, onEmptyList)
+
         viewModelScope.launch {
             try {
                 val result = hydrusRepository.unarchiveFile(fileId = fileId)
-                if (result.isSuccess) {
-                    currentActiveIds.remove(fileId)
-                    hasModifications = true
-                    if (currentActiveIds.isEmpty()) onEmptyList()
-                    if (!_uiState.value.isReviewMode) {
-                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                        currentPagingSource?.invalidate()
-                    }
+                if (result.isFailure) {
+                    _uiEvents.emit(UiEvent.ShowToast("Error moving file to inbox"))
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 _uiEvents.emit(UiEvent.ShowToast("Error moving file to inbox"))
+            } finally {
+                inFlightFileOperations.remove(fileId)
             }
         }
     }
@@ -496,21 +514,20 @@ class AetherViewModel(
 
     // restore from trash
     fun restoreImage(fileId: Long, onEmptyList: () -> Unit) {
+        if (!inFlightFileOperations.add(fileId)) return
+        removeFileOptimistically(fileId, onEmptyList)
+
         viewModelScope.launch {
             try {
                 val result = hydrusRepository.restoreFile(fileId = fileId)
-                if (result.isSuccess) {
-                    currentActiveIds.remove(fileId)
-                    hasModifications = true
-                    if (currentActiveIds.isEmpty()) onEmptyList()
-                    if (!_uiState.value.isReviewMode) {
-                        _uiState.update { it.copy(totalFilesCount = currentActiveIds.size) }
-                        currentPagingSource?.invalidate()
-                    }
+                if (result.isFailure) {
+                    _uiEvents.emit(UiEvent.ShowToast("Error restoring file"))
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 _uiEvents.emit(UiEvent.ShowToast("Error restoring file"))
+            } finally {
+                inFlightFileOperations.remove(fileId)
             }
         }
     }
@@ -945,6 +962,7 @@ class AetherViewModel(
         }
     }
 
+    // alternates bar
     fun loadAlternates(hash: String) {
         viewModelScope.launch {
             try {
@@ -971,7 +989,21 @@ class AetherViewModel(
                         }
                     }
 
-                    _currentAlternates.value = alternatesList
+                    if (alternatesList.isNotEmpty()) {
+                        val metadataResult = hydrusRepository.getFileMetadataByHashes(alternatesList)
+                        val validHashes = metadataResult.getOrNull()?.metadata
+                            ?.filter { it.is_trashed != true }
+                            ?.mapNotNull { it.hash }
+                            ?.toSet()
+
+                        _currentAlternates.value = if (validHashes != null) {
+                            alternatesList.filter { it in validHashes }
+                        } else {
+                            alternatesList
+                        }
+                    } else {
+                        _currentAlternates.value = emptyList()
+                    }
                 } else {
                     _currentAlternates.value = emptyList()
                 }
