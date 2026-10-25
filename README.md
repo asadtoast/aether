@@ -9,7 +9,7 @@ My idea is to bring the convenience of a processed or in process hydrus gallery 
 <br><br>
 
 ## Media
-- Supports mostly anything that can be normally played on an android device, be it your jpeg, png, gifs, mp4, webm, webp...
+- Supports mostly anything that can be normally played on an android device, be it your jpeg, png, gifs, mp4, webm, webp... and multiple file domains
 - Capability to display alternate / related files
 - File tag parsers
 <br>
@@ -21,20 +21,25 @@ My idea is to bring the convenience of a processed or in process hydrus gallery 
 
 - Built in hide PSD, PDF and ZIP files
 - Inbox, archive and delete to selected files
-- Archive / delete processing of the searched context
+<br>
+
+<img width="360" height="732" alt="archive_inbox_trash" src="https://github.com/user-attachments/assets/365e4e1e-eefc-482f-b5bf-5fbf5d0370fd" />
+<br><br>
+
+  
+- Archive / delete processing of anything selected within the searchbar
 <br>
 
 <img width="360" height="732" alt="archive_delete_example" src="https://github.com/user-attachments/assets/6b0aa9bd-220c-4ced-842a-da054d44dd76" />
 <br><br>
   
-- Duplicate processing
+- Duplicate processing including animated media
 <br>
 
-<img width="360" height="732" alt="dup_processing_A" src="https://github.com/user-attachments/assets/cc528b46-4ed7-4b59-9e99-3990c0bd6097" />
-<img width="360" height="732" alt="dup_processing_B" src="https://github.com/user-attachments/assets/cc0ead44-bf4a-43fc-b827-42e55ae5d8c8" />
+<img width="360" height="732" alt="animated_duplicate_processing" src="https://github.com/user-attachments/assets/595e68b4-abc0-4961-a684-08c920f2fed0" />
 <br><br>
 
-- Group alternates processing
+- Group alternates processing including animated media
 <br>
 <img width="360" height="732" alt="group_alternate_processing_1" src="https://github.com/user-attachments/assets/9a4e3863-5c48-42c5-bbf5-1fa2c42a94ca" />
 <img width="360" height="732" alt="group_alternate_processing_2" src="https://github.com/user-attachments/assets/7b62cdf2-e36e-4b74-bc99-0067756e0580" />
@@ -44,8 +49,13 @@ My idea is to bring the convenience of a processed or in process hydrus gallery 
 
 ## Tags
 - Add / remove tags to both individual or multiple selected files
+<br>
+
+<img width="360" height="732" alt="batch_edit" src="https://github.com/user-attachments/assets/74e291f3-57a4-4285-bac8-d72ff9b96dd3" />
+<br><br>
+
 - Search and manage tags
-- Tag Wiki
+- Tag Wiki with support for multiple tag domains
 
 With bigger galleries containing imports from manual, and multiple other sites, remembering what some tags meant becomes quite a difficult task so, I've added a Tag Wiki, like your normal boorus, this allows you to write a description (with support for referencing other tags from the system), check some example files from your client, add aliases that you can also search and add references to external sites.
 <br>
