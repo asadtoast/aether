@@ -349,6 +349,7 @@ fun GroupDuplicateProcessingScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // row 1
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -397,6 +398,7 @@ fun GroupDuplicateProcessingScreen(
                         }
                     }
 
+                    // row 2
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),

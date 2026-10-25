@@ -175,78 +175,76 @@ fun DuplicateProcessingScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.DarkGray)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .background(Color(0xFF1E1E1E))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // row 1: main
+                // row 1: main decisions
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.A_IS_BETTER) },
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
                         enabled = !isLoading
                     ) {
-                        Text("A is better", textAlign = TextAlign.Center)
+                        Text("A is better", textAlign = TextAlign.Center, maxLines = 1)
                     }
                     Button(
                         onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.B_IS_BETTER) },
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
                         enabled = !isLoading
                     ) {
-                        Text("B is better", textAlign = TextAlign.Center)
+                        Text("B is better", textAlign = TextAlign.Center, maxLines = 1)
                     }
-                }
-
-                // row 2: alternates
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
+                    Button(
                         onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.ALTERNATES) },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF388E3C)),
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
                         enabled = !isLoading
                     ) {
-                        Text("Alternates", textAlign = TextAlign.Center)
-                    }
-                    OutlinedButton(
-                        onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.FALSE_POSITIVE) },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        modifier = Modifier.weight(1f),
-                        enabled = !isLoading
-                    ) {
-                        Text("False Pos.", textAlign = TextAlign.Center)
+                        Text("Alternates", textAlign = TextAlign.Center, color = Color.White, maxLines = 1)
                     }
                 }
 
-                // row 3: destructive
+                // row 2: secondary / destructive / navigation
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.DELETE_BOTH) },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E)),
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
                         enabled = !isLoading
                     ) {
-                        Text("Delete Both", textAlign = TextAlign.Center, color = Color.White)
+                        Text("Delete Both", textAlign = TextAlign.Center, color = Color.White, maxLines = 1)
                     }
-                    OutlinedButton(
+                    Button(
+                        onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.FALSE_POSITIVE) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF424242)),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
+                        enabled = !isLoading
+                    ) {
+                        Text("False Pos.", textAlign = TextAlign.Center, color = Color.White, maxLines = 1)
+                    }
+                    Button(
                         onClick = { viewModel.undoLastAction() },
-                        modifier = Modifier.weight(0.5f),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
-                        ),
+                        modifier = Modifier.weight(0.75f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF424242)),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
                         enabled = !isLoading
                     ) {
-                        Text("Undo", textAlign = TextAlign.Center)
+                        Text("Undo", textAlign = TextAlign.Center, color = Color.White, maxLines = 1)
                     }
-                    TextButton(
+                    Button(
                         onClick = { viewModel.resolveDuplicate(currentPair, DuplicateAction.SKIP) },
-                        modifier = Modifier.weight(0.5f),
+                        modifier = Modifier.weight(0.75f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF424242)),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
                         enabled = !isLoading
                     ) {
-                        Text("Skip", textAlign = TextAlign.Center, color = Color.LightGray)
+                        Text("Skip", textAlign = TextAlign.Center, color = Color.White, maxLines = 1)
                     }
                 }
             }
