@@ -82,7 +82,6 @@ fun FullScreenViewer(
     onClose: () -> Unit,
     onAddToSearch: (String) -> Unit,
     onNavigateToTagWiki: (String) -> Unit,
-    onAlternateClick: (String) -> Unit = {},
     customImageList: List<com.asadtoast.aether.data.FileMetadata>? = null,
     pagedImages: androidx.paging.compose.LazyPagingItems<com.asadtoast.aether.data.FileMetadata>? = null,
     onPageChanged: (Int) -> Unit = {}
@@ -1180,7 +1179,7 @@ fun FullScreenVideoPlayer(
         }
     }
 
-    if (!hasBeenActive) {
+    if (!hasBeenActive || apiKey.isBlank()) {
         // placeholder while swiping
         Box(modifier = modifier.fillMaxSize().background(Color.Black))
         return
@@ -1215,7 +1214,7 @@ fun FullScreenVideoPlayer(
     // lifecycle control (pause if minimized)
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, exoPlayer, url) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE) {
                 savedPosition = kotlin.math.max(0L, exoPlayer.currentPosition)
@@ -1227,13 +1226,6 @@ fun FullScreenVideoPlayer(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    // ondispose send player back to pool only when composable leaves composition
-    DisposableEffect(exoPlayer) {
-        onDispose {
-            com.asadtoast.aether.utils.ExoPlayerPool.releasePlayer(exoPlayer) // fancy recycling
-        }
     }
 
     // per-url listener and position saving
@@ -1281,11 +1273,13 @@ fun FullScreenVideoPlayer(
             exoPlayer.removeListener(listener)
             exoPlayer.stop()
             exoPlayer.clearMediaItems()
+            // ondispose send player back to pool only when composable leaves composition
+            com.asadtoast.aether.utils.ExoPlayerPool.releasePlayer(exoPlayer) // fancy recycling
         }
     }
 
     // background video prep
-    LaunchedEffect(url, mime) {
+    LaunchedEffect(exoPlayer, url, mime) {
         playbackError = null
         val mimeStr = mime.lowercase()
         val mimeInt = mimeStr.toIntOrNull() ?: -1
@@ -1334,7 +1328,7 @@ fun FullScreenVideoPlayer(
     }
 
     // dynamic autoloop control
-    LaunchedEffect(autoLoop, url) {
+    LaunchedEffect(exoPlayer, autoLoop, url) {
         exoPlayer.repeatMode = if (autoLoop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
 
@@ -1357,7 +1351,7 @@ fun FullScreenVideoPlayer(
         }
     }
 
-    LaunchedEffect(showSubtitles) {
+    LaunchedEffect(exoPlayer, showSubtitles) {
         exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
             .buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !showSubtitles)

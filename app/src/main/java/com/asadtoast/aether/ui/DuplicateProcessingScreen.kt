@@ -273,6 +273,8 @@ fun DuplicateMediaLayer(
     port: String,
     isVisible: Boolean
 ) {
+    if (serverIp.isBlank() || port.isBlank() || apiKey.isBlank()) return
+
     val context = LocalContext.current
     val fileUrl = "http://$serverIp:$port/get_files/file?hash=$hash&Hydrus-Client-API-Access-Key=$apiKey"
 
@@ -285,11 +287,12 @@ fun DuplicateMediaLayer(
         modifier = Modifier.fillMaxSize()
     ) {
         if (isVideo) {
-            val exoPlayer = remember { ExoPlayerPool.getPlayer(context, apiKey) }
+            val exoPlayer = remember(apiKey) { ExoPlayerPool.getPlayer(context, apiKey) }
             var isBuffering by remember { mutableStateOf(true) }
             var playbackError by remember { mutableStateOf(false) }
+            var aspectRatio by remember { mutableStateOf(0f) }
 
-            DisposableEffect(fileUrl) {
+            DisposableEffect(exoPlayer, fileUrl) {
                 val listener = object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         isBuffering = playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_IDLE
@@ -299,6 +302,12 @@ fun DuplicateMediaLayer(
                         playbackError = true
                         isBuffering = false
                     }
+
+                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                        if (videoSize.width > 0 && videoSize.height > 0) {
+                            aspectRatio = (videoSize.width.toFloat() / videoSize.height.toFloat()) * videoSize.pixelWidthHeightRatio
+                        }
+                    }
                 }
                 exoPlayer.addListener(listener)
 
@@ -307,13 +316,21 @@ fun DuplicateMediaLayer(
                 exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
                 exoPlayer.volume = 0f
                 exoPlayer.prepare()
-                exoPlayer.play()
+                exoPlayer.playWhenReady = isVisible
 
                 onDispose {
                     exoPlayer.removeListener(listener)
                     exoPlayer.stop()
                     exoPlayer.clearMediaItems()
                     ExoPlayerPool.releasePlayer(exoPlayer)
+                }
+            }
+
+            LaunchedEffect(exoPlayer, isVisible) {
+                if (isVisible) {
+                    exoPlayer.play()
+                } else {
+                    exoPlayer.pause()
                 }
             }
 
@@ -343,17 +360,13 @@ fun DuplicateMediaLayer(
                                     android.view.ViewGroup.LayoutParams.MATCH_PARENT
                                 ))
                                 exoPlayer.setVideoTextureView(textureView)
-
-                                exoPlayer.addListener(object : Player.Listener {
-                                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                                        if (videoSize.width == 0 || videoSize.height == 0) return
-                                        setAspectRatio(videoSize.width.toFloat() / videoSize.height.toFloat() * videoSize.pixelWidthHeightRatio)
-                                    }
-                                })
                             }
                         },
                         update = { view ->
                             view.visibility = if (isVisible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+                            if (aspectRatio > 0f) {
+                                view.setAspectRatio(aspectRatio)
+                            }
                         },
                         modifier = Modifier.fillMaxSize()
                     )

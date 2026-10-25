@@ -6,15 +6,39 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -122,127 +146,14 @@ fun GroupDuplicateProcessingScreen(
                         if (kotlin.math.abs(index - currentIndex) <= 1) {
                             val hash = file.hash ?: ""
                             key(hash) {
-                                val fileUrl = "http://$serverIp:$port/get_files/file?hash=$hash&Hydrus-Client-API-Access-Key=$apiKey"
-                                val isVideo = file.mime.startsWith("video/")
-
-                                Box(
-                                    modifier = Modifier.fillMaxSize()
-                                ) {
-                                    if (isVideo) {
-                                        var isVideoLoading by remember { mutableStateOf(true) }
-                                        var playerError by remember { mutableStateOf(false) }
-                                        val exoPlayer = remember {
-                                            androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
-                                                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
-                                                volume = 0f
-                                                addListener(object : androidx.media3.common.Player.Listener {
-                                                    override fun onPlaybackStateChanged(playbackState: Int) {
-                                                        if (playbackState == androidx.media3.common.Player.STATE_READY) {
-                                                            isVideoLoading = false
-                                                        }
-                                                    }
-                                                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                                                        playerError = true
-                                                        isVideoLoading = false
-                                                    }
-                                                })
-                                            }
-                                        }
-
-                                        LaunchedEffect(fileUrl) {
-                                            isVideoLoading = true
-                                            playerError = false
-                                            exoPlayer.setMediaItem(androidx.media3.common.MediaItem.fromUri(fileUrl))
-                                            exoPlayer.prepare()
-                                        }
-
-                                        LaunchedEffect(index, currentIndex) {
-                                            if (index == currentIndex && !playerError) {
-                                                exoPlayer.play()
-                                            } else {
-                                                exoPlayer.pause()
-                                            }
-                                        }
-
-                                        DisposableEffect(Unit) {
-                                            onDispose {
-                                                exoPlayer.release()
-                                            }
-                                        }
-
-                                        Box(modifier = Modifier.fillMaxSize()) {
-                                            if (!playerError) {
-                                                androidx.compose.ui.viewinterop.AndroidView(
-                                                    factory = { ctx ->
-                                                        androidx.media3.ui.PlayerView(ctx).apply {
-                                                            player = exoPlayer
-                                                            useController = false
-                                                            resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-                                                            isClickable = false
-                                                            isFocusable = false
-                                                        }
-                                                    },
-                                                    update = { view ->
-                                                        view.visibility = if (index == currentIndex) android.view.View.VISIBLE else android.view.View.INVISIBLE
-                                                    },
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
-                                            } else {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxSize()
-                                                        .graphicsLayer { alpha = if (index == currentIndex) 1f else 0f }
-                                                ) {
-                                                    coil.compose.SubcomposeAsyncImage(
-                                                        model = fileUrl,
-                                                        contentDescription = "Unsupported video fallback",
-                                                        contentScale = ContentScale.Fit,
-                                                        modifier = Modifier.fillMaxSize(),
-                                                        loading = {
-                                                            Box(
-                                                                modifier = Modifier.fillMaxSize(),
-                                                                contentAlignment = Alignment.Center
-                                                            ) {
-                                                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                                                            }
-                                                        }
-                                                    )
-                                                    Icon(
-                                                        imageVector = androidx.compose.material.icons.Icons.Default.Warning,
-                                                        contentDescription = "Unsupported Codec",
-                                                        tint = Color.Red.copy(alpha = 0.7f),
-                                                        modifier = Modifier
-                                                            .align(Alignment.Center)
-                                                            .size(64.dp)
-                                                    )
-                                                }
-                                            }
-                                            if (isVideoLoading && index == currentIndex) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.align(Alignment.Center),
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        coil.compose.SubcomposeAsyncImage(
-                                            model = fileUrl,
-                                            contentDescription = "Duped image ${index + 1}",
-                                            contentScale = ContentScale.Fit,
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .graphicsLayer { alpha = if (index == currentIndex) 1f else 0f },
-                                            loading = {
-                                                Box(
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
+                                DuplicateMediaLayer(
+                                    hash = hash,
+                                    mimeType = file.mime,
+                                    apiKey = apiKey,
+                                    serverIp = serverIp,
+                                    port = port,
+                                    isVisible = index == currentIndex
+                                )
                             }
                         }
                     }
