@@ -1164,6 +1164,7 @@ fun ZoomableImageItem(
 object VideoStateCache {
     // retain max 20 las positions
     val positions = LruCache<String, Long>(20)
+    var isMuted by mutableStateOf(com.asadtoast.aether.utils.ExoPlayerPool.isMuted)
 }
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -1200,7 +1201,7 @@ fun FullScreenVideoPlayer(
 
     val context = LocalContext.current
     val view = LocalView.current
-    var isMuted by rememberSaveable { mutableStateOf(true) }
+    val isMuted = VideoStateCache.isMuted
     var showSubtitles by rememberSaveable { mutableStateOf(false) }
     var isZoomed by rememberSaveable { mutableStateOf(false) }
     var isVideoPlaying by remember { mutableStateOf(false) }
@@ -1241,7 +1242,14 @@ fun FullScreenVideoPlayer(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // ondispose send player back to pool
+    // ondispose send player back to pool only when composable leaves composition
+    DisposableEffect(exoPlayer) {
+        onDispose {
+            com.asadtoast.aether.utils.ExoPlayerPool.releasePlayer(exoPlayer) // fancy recycling
+        }
+    }
+
+    // per-url listener and position saving
     DisposableEffect(exoPlayer, url) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -1286,12 +1294,12 @@ fun FullScreenVideoPlayer(
             exoPlayer.removeListener(listener)
             exoPlayer.stop()
             exoPlayer.clearMediaItems()
-            com.asadtoast.aether.utils.ExoPlayerPool.releasePlayer(exoPlayer) // fancy recycling
         }
     }
 
     // background video prep
     LaunchedEffect(url, mime) {
+        playbackError = null
         val mimeStr = mime.lowercase()
         val mimeInt = mimeStr.toIntOrNull() ?: -1
 
@@ -1324,6 +1332,7 @@ fun FullScreenVideoPlayer(
             mediaItemBuilder.setMimeType(exoMimeType)
         }
 
+        exoPlayer.volume = if (VideoStateCache.isMuted) 0f else 1f
         exoPlayer.setMediaItem(mediaItemBuilder.build())
 
         val pos = VideoStateCache.positions.get(url) ?: savedPosition
@@ -1332,31 +1341,33 @@ fun FullScreenVideoPlayer(
         }
 
         exoPlayer.prepare()
+        if (isActive) {
+            exoPlayer.play()
+        }
     }
 
     // dynamic autoloop control
-    LaunchedEffect(autoLoop) {
+    LaunchedEffect(autoLoop, url) {
         exoPlayer.repeatMode = if (autoLoop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
 
     // smart playback controls (play, muted and subtitles)
-    LaunchedEffect(isActive) {
-        if (isActive) {
-            exoPlayer.play()
-        } else {
-            exoPlayer.pause()
-        }
-    }
-
-    LaunchedEffect(isMuted) {
-        exoPlayer.volume = if (isMuted) 0f else 1f
-
+    LaunchedEffect(isActive, isMuted, url, exoPlayer) {
+        com.asadtoast.aether.utils.ExoPlayerPool.isMuted = isMuted
         val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
             .build()
 
-        exoPlayer.setAudioAttributes(audioAttributes, !isMuted)
+        if (isActive) {
+            exoPlayer.setAudioAttributes(audioAttributes, !isMuted)
+            exoPlayer.volume = if (isMuted) 0f else 1f
+            exoPlayer.play()
+        } else {
+            exoPlayer.pause()
+            exoPlayer.volume = 0f
+            exoPlayer.setAudioAttributes(audioAttributes, false)
+        }
     }
 
     LaunchedEffect(showSubtitles) {
@@ -1463,7 +1474,11 @@ fun FullScreenVideoPlayer(
                     }
 
                     IconButton(
-                        onClick = { isMuted = !isMuted },
+                        onClick = {
+                            val newMuted = !isMuted
+                            com.asadtoast.aether.utils.ExoPlayerPool.isMuted = newMuted
+                            VideoStateCache.isMuted = newMuted
+                        },
                         modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
                     ) {
                         Icon(

@@ -33,6 +33,7 @@ import androidx.paging.cachedIn
 import androidx.paging.filter
 import com.asadtoast.aether.data.HydrusPagingSource
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
@@ -169,17 +170,17 @@ class AetherViewModel(
     )
 
     init {
-        viewModelScope.launch { settingsManager.hidePdfFlow.collect { _hidePdf.value = it } }
-        viewModelScope.launch { settingsManager.hidePsdFlow.collect { _hidePsd.value = it } }
-        viewModelScope.launch { settingsManager.hideZipFlow.collect { _hideZip.value = it } }
-        viewModelScope.launch { settingsManager.hideVideosFlow.collect { _hideVideos.value = it } }
-        viewModelScope.launch { settingsManager.gifAutoLoopFlow.collect { loop -> _uiState.update { it.copy(gifAutoLoop = loop) } } }
+        viewModelScope.launch { settingsManager.hidePdfFlow.distinctUntilChanged().collect { _hidePdf.value = it } }
+        viewModelScope.launch { settingsManager.hidePsdFlow.distinctUntilChanged().collect { _hidePsd.value = it } }
+        viewModelScope.launch { settingsManager.hideZipFlow.distinctUntilChanged().collect { _hideZip.value = it } }
+        viewModelScope.launch { settingsManager.hideVideosFlow.distinctUntilChanged().collect { _hideVideos.value = it } }
+        viewModelScope.launch { settingsManager.gifAutoLoopFlow.distinctUntilChanged().collect { loop -> _uiState.update { it.copy(gifAutoLoop = loop) } } }
 
         viewModelScope.launch {
             var isFirstLoad = true
             combine(settingsManager.fileDomainFlow, settingsManager.tagDomainFlow) { fileDomain, tagDomain ->
                 fileDomain to tagDomain
-            }.collect {
+            }.distinctUntilChanged().collect {
                 if (isFirstLoad) {
                     isFirstLoad = false
                 } else {

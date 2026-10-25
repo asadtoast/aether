@@ -14,6 +14,7 @@ import org.koin.core.component.inject
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 object ExoPlayerPool : KoinComponent {
     private val okHttpClient: OkHttpClient by inject()
+    var isMuted: Boolean = true
 
     @Synchronized
     fun getPlayer(context: Context, apiKey: String): ExoPlayer {
@@ -44,6 +45,7 @@ object ExoPlayerPool : KoinComponent {
             .setMediaSourceFactory(sourceFactory)
             .build().apply {
                 setAudioAttributes(audioAttributes, false)
+                volume = if (isMuted) 0f else 1f
                 repeatMode = Player.REPEAT_MODE_ONE
                 trackSelectionParameters = trackSelectionParameters
                     .buildUpon()

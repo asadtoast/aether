@@ -82,7 +82,6 @@ fun ReviewScreen(
 
     // Media states
     val isPlaying = remember { androidx.compose.runtime.mutableStateOf(true) }
-    val isLooping = remember { androidx.compose.runtime.mutableStateOf(true) }
     val scale = remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
     val offset = remember { androidx.compose.runtime.mutableStateOf(Offset.Zero) }
 
@@ -178,7 +177,7 @@ fun ReviewScreen(
                             model = coil.request.ImageRequest.Builder(context)
                                 .data(urlToLoad)
                                 .size(coil.size.Size.ORIGINAL)
-                                .setParameter("coil#repeat_count", if (isLooping.value) -1 else 0)
+                                .setParameter("coil#repeat_count", if (uiState.gifAutoLoop) -1 else 0)
                                 .build(),
                             contentDescription = "Review",
                             contentScale = ContentScale.Fit,
@@ -294,7 +293,7 @@ fun ReviewScreen(
                 // layer 2.6, GIF controls
                 if (isGif) {
                     IconButton(
-                        onClick = { isLooping.value = !isLooping.value },
+                        onClick = { viewModel.saveGifAutoLoop(!uiState.gifAutoLoop) },
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .statusBarsPadding()
@@ -302,9 +301,9 @@ fun ReviewScreen(
                             .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                     ) {
                         Icon(
-                            imageVector = if (isLooping.value) Icons.Default.Repeat else Icons.Default.RepeatOne,
+                            imageVector = if (uiState.gifAutoLoop) Icons.Default.Repeat else Icons.Default.RepeatOne,
                             contentDescription = "Loop",
-                            tint = if (isLooping.value) Color.Cyan else Color.White
+                            tint = if (uiState.gifAutoLoop) Color.Cyan else Color.White
                         )
                     }
                 }
