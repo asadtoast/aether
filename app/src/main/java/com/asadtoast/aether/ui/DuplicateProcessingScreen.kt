@@ -91,6 +91,28 @@ fun DuplicateProcessingScreen(
 
     // status to decide which picture gets shown when holding
     var showImageB by remember { mutableStateOf(false) }
+    var playerA by remember(currentPair.hash_a) { mutableStateOf<Player?>(null) }
+    var playerB by remember(currentPair.hash_b) { mutableStateOf<Player?>(null) }
+
+    LaunchedEffect(playerA, playerB) {
+        val pA = playerA
+        val pB = playerB
+        if (pA != null && pB != null) {
+            while (true) {
+                kotlinx.coroutines.delay(500)
+                if (pA.playbackState == Player.STATE_READY && pB.playbackState == Player.STATE_READY && pA.isPlaying && pB.isPlaying) {
+                    val diff = kotlin.math.abs(pA.currentPosition - pB.currentPosition)
+                    if (diff > 150L) {
+                        if (showImageB) {
+                            pA.seekTo(pB.currentPosition)
+                        } else {
+                            pB.seekTo(pA.currentPosition)
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -119,7 +141,9 @@ fun DuplicateProcessingScreen(
                         apiKey = apiKey,
                         serverIp = serverIp,
                         port = port,
-                        isVisible = !showImageB
+                        isVisible = !showImageB,
+                        alwaysPlay = true,
+                        onPlayerReady = { playerA = it }
                     )
                 }
                 key(currentPair.hash_b) {
@@ -129,7 +153,9 @@ fun DuplicateProcessingScreen(
                         apiKey = apiKey,
                         serverIp = serverIp,
                         port = port,
-                        isVisible = showImageB
+                        isVisible = showImageB,
+                        alwaysPlay = true,
+                        onPlayerReady = { playerB = it }
                     )
                 }
 
@@ -271,7 +297,9 @@ fun DuplicateMediaLayer(
     apiKey: String,
     serverIp: String,
     port: String,
-    isVisible: Boolean
+    isVisible: Boolean,
+    alwaysPlay: Boolean = false,
+    onPlayerReady: ((Player?) -> Unit)? = null
 ) {
     if (serverIp.isBlank() || port.isBlank() || apiKey.isBlank()) return
 
@@ -293,6 +321,7 @@ fun DuplicateMediaLayer(
             var aspectRatio by remember { mutableStateOf(0f) }
 
             DisposableEffect(exoPlayer, fileUrl) {
+                onPlayerReady?.invoke(exoPlayer)
                 val listener = object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         isBuffering = playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_IDLE
@@ -316,9 +345,10 @@ fun DuplicateMediaLayer(
                 exoPlayer.repeatMode = Player.REPEAT_MODE_ONE
                 exoPlayer.volume = 0f
                 exoPlayer.prepare()
-                exoPlayer.playWhenReady = isVisible
+                exoPlayer.playWhenReady = alwaysPlay || isVisible
 
                 onDispose {
+                    onPlayerReady?.invoke(null)
                     exoPlayer.removeListener(listener)
                     exoPlayer.stop()
                     exoPlayer.clearMediaItems()
@@ -326,8 +356,8 @@ fun DuplicateMediaLayer(
                 }
             }
 
-            LaunchedEffect(exoPlayer, isVisible) {
-                if (isVisible) {
+            LaunchedEffect(exoPlayer, isVisible, alwaysPlay) {
+                if (alwaysPlay || isVisible) {
                     exoPlayer.play()
                 } else {
                     exoPlayer.pause()

@@ -82,6 +82,7 @@ fun FullScreenViewer(
     onClose: () -> Unit,
     onAddToSearch: (String) -> Unit,
     onNavigateToTagWiki: (String) -> Unit,
+    onAlternateClick: ((String) -> Unit)? = null,
     customImageList: List<com.asadtoast.aether.data.FileMetadata>? = null,
     pagedImages: androidx.paging.compose.LazyPagingItems<com.asadtoast.aether.data.FileMetadata>? = null,
     onPageChanged: (Int) -> Unit = {}
@@ -406,7 +407,11 @@ fun FullScreenViewer(
                                                     modifier = Modifier
                                                         .size(96.dp)
                                                         .clickable {
-                                                            viewModel.viewAlternate(altHash)
+                                                            if (onAlternateClick != null) {
+                                                                onAlternateClick(altHash)
+                                                            } else {
+                                                                viewModel.viewAlternate(altHash)
+                                                            }
                                                         }
                                                         .border(
                                                             width = if (isSelected) 2.dp else 0.dp,
